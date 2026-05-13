@@ -3,9 +3,8 @@ import Home from '../views/Home.vue'
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
-  { path: '/assets', name: 'Assets', component: () => import('../views/Assets.vue') },
-  { path: '/vault', name: 'Vault', component: () => import('../views/Vault.vue') },
-  { path: '/settings', name: 'Settings', component: () => import('../views/Settings.vue') },
+  { path: '/discover', name: 'Discover', component: () => import('../views/Discover.vue') },
+  { path: '/portfolio', name: 'Portfolio', component: () => import('../views/Portfolio.vue') },
 ]
 
 const router = createRouter({
