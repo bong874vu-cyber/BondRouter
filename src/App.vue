@@ -37,7 +37,7 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
       <div v-if="web3.error" class="micro-cap" style="color: #f07178;">{{ web3.error }}</div>
       <div v-if="web3.isConnected" style="text-align: right;">
         <div class="micro-cap text-mute">{{ web3.network.toUpperCase() }} NETWORK</div>
-        <div class="body-md" style="font-weight: 700;">{{ Number(displayBalance).toFixed(4) }} ETH</div>
+        <div class="body-md" style="font-weight: 700;">{{ Number(displayBalance).toFixed(4) }} USDC</div>
       </div>
       <button v-if="!web3.isConnected" class="btn-ghost" style="padding: 12px 24px; font-size: 10px;" @click="web3.connect()">CONNECT WALLET</button>
       <button v-else class="btn-ghost btn-ghost-dark" style="padding: 12px 24px; font-size: 10px; border-color: var(--on-primary); color: var(--on-primary); background: transparent;" @click="web3.disconnect()">{{ truncate(web3.address) }}</button>

@@ -25,22 +25,25 @@ export const useWeb3Store = defineStore('web3', () => {
         try {
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0x1A4' }], // Arc Testnet Hex Chain ID
+            params: [{ chainId: '0x4CEF52' }], // 5042002
           });
         } catch (switchError) {
-          if (switchError.code === 4902) {
+          if (switchError.code === 4902 || switchError.code === -32603) {
             await window.ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [
                 {
-                  chainId: '0x1A4',
+                  chainId: '0x4CEF52',
                   chainName: 'Arc Testnet',
-                  rpcUrls: ['https://testnet-rpc.arc.tech'],
-                  nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
-                  blockExplorerUrls: ['https://explorer.testnet.arc.tech/']
+                  rpcUrls: ['https://rpc.testnet.arc.network'],
+                  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+                  blockExplorerUrls: ['https://testnet.arcscan.app/']
                 }
               ]
             });
+          } else {
+            console.warn("Network switch failed:", switchError)
+            throw new Error("FAILED TO SWITCH TO ARC TESTNET.")
           }
         }
 
@@ -63,15 +66,17 @@ export const useWeb3Store = defineStore('web3', () => {
         })
       }
     } catch (e) {
+      console.error("Web3 Connect Error:", e)
       error.value = parseError(e)
     }
   }
 
   function parseError(e) {
     const msg = e.message?.toLowerCase() || ''
-    if (msg.includes('user rejected') || msg.includes('user denied')) return "TRANSACTION CANCELLED."
+    if (msg.includes('user rejected') || msg.includes('user denied')) return "USER REJECTED THE REQUEST."
     if (msg.includes('insufficient funds')) return "NOT ENOUGH ETH FOR GAS."
     if (msg.includes('nonce')) return "NETWORK SYNC ERROR. PLEASE RESET WALLET."
+    if (msg.includes('switch') || msg.includes('chain') || msg.includes('network')) return "FAILED TO CONNECT TO ARC TESTNET. PLEASE ADD IT MANUALLY."
     return "NETWORK CONNECTION FAILED."
   }
 
@@ -93,13 +98,12 @@ export const useWeb3Store = defineStore('web3', () => {
     const provider = new BrowserProvider(window.ethereum)
     const signer = await provider.getSigner()
     
-    // We send a 0 ETH transaction to self, with data representing the bond ID to act as on-chain record
-    const hexData = "0x" + Array.from(bondId).map(c => c.charCodeAt(0).toString(16)).padStart(2, '0').join('')
-    
+    // Arc Testnet (and some specific networks) reject data payloads sent to EOAs,
+    // and also reject sender == receiver for 0-value transactions.
+    // We send a 0-value ping transaction to a burn address to generate a valid on-chain hash.
     const tx = await signer.sendTransaction({
-      to: address.value,
-      value: 0n,
-      data: hexData
+      to: '0x000000000000000000000000000000000000dEaD',
+      value: 0n
     })
     
     const receipt = await tx.wait()

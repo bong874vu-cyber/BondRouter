@@ -75,13 +75,13 @@ async function confirmInvest() {
 
 <template>
   <div class="page-container fade-in">
-    <div class="micro-cap text-mute mb-2">MARKETPLACE</div>
-    <h1 class="display-xl mb-4" style="margin-bottom: 48px;">DISCOVER BONDS</h1>
+    <div class="micro-cap text-mute mb-2" v-once>MARKETPLACE</div>
+    <h1 class="display-xl mb-4" style="margin-bottom: 48px;" v-once>DISCOVER BONDS</h1>
 
     <div v-if="store.isLoading" class="body-md">ACQUIRING TELEMETRY...</div>
     
     <table v-else class="data-table">
-      <thead>
+      <thead v-once>
         <tr>
           <th>ASSET</th>
           <th>ISSUER</th>

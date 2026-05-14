@@ -8,6 +8,18 @@ export const useBondStore = defineStore('bond', () => {
 
   async function fetchBonds() {
     if (marketBonds.value.length > 0) return;
+
+    // Cache Check
+    const cached = sessionStorage.getItem('llama_bonds_cache');
+    if (cached) {
+      const { timestamp, data } = JSON.parse(cached);
+      // TTL 1 hour (3600000 ms)
+      if (Date.now() - timestamp < 3600000) {
+        marketBonds.value = data;
+        return;
+      }
+    }
+
     isLoading.value = true;
     try {
       const res = await fetch('https://yields.llama.fi/pools')
@@ -32,6 +44,12 @@ export const useBondStore = defineStore('bond', () => {
         token: p.symbol,
         tvl: p.tvlUsd
       }))
+
+      // Set Cache
+      sessionStorage.setItem('llama_bonds_cache', JSON.stringify({
+        timestamp: Date.now(),
+        data: marketBonds.value
+      }));
     } catch (e) {
       console.error('Failed to fetch real data:', e)
     } finally {
