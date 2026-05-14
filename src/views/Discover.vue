@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useBondStore } from '../stores/bond'
 import { useWeb3Store } from '../stores/web3'
 import { useUIStore } from '../stores/ui'
+import { Server, Activity, ShieldCheck, CheckCircle2, ChevronRight, X } from 'lucide-vue-next'
 
 const store = useBondStore()
 const web3 = useWeb3Store()
@@ -16,10 +17,11 @@ const txHash = ref('')
 const txErrorMsg = ref('')
 
 const SIMULATION_STEPS = [
+  "INITIALIZING CCTP BRIDGE PROTOCOL...",
   "BURNING USDC ON ORIGIN CHAIN...",
-  "WAITING FOR CIRCLE ATTESTATION...",
-  "MINTING USDC ON DESTINATION CHAIN...",
-  "EXECUTING SMART CONTRACT..."
+  "AWAITING CIRCLE ATTESTATION...",
+  "MINTING USDC ON ARC TESTNET...",
+  "EXECUTING BOND ACQUISITION CONTRACT..."
 ]
 
 function openInvestModal(bond) {
@@ -41,7 +43,7 @@ async function runSimulation() {
   txStatus.value = 'simulating'
   for (let i = 0; i < SIMULATION_STEPS.length; i++) {
     simulationStep.value = i
-    await new Promise(r => setTimeout(r, 1200)) // 1.2s per step
+    await new Promise(r => setTimeout(r, 900)) // faster simulation
   }
 }
 
@@ -75,31 +77,54 @@ async function confirmInvest() {
 
 <template>
   <div class="page-container fade-in">
-    <div class="micro-cap text-mute mb-2" v-once>MARKETPLACE</div>
-    <h1 class="display-xl mb-4" style="margin-bottom: 48px;" v-once>DISCOVER BONDS</h1>
+    <div class="flex items-center gap-2 mb-2 micro-cap" style="color: var(--accent-primary);">
+      <Server :size="14" /> BOND MARKETPLACE
+    </div>
+    <h1 class="display-xl text-gradient mb-4" style="margin-bottom: 3rem;">DISCOVER BONDS</h1>
 
-    <div v-if="store.isLoading" class="body-md">ACQUIRING TELEMETRY...</div>
+    <div v-if="store.isLoading" class="flex items-center justify-center" style="height: 40vh;">
+      <div class="flex flex-col items-center gap-4">
+        <div class="spinner"></div>
+        <div class="micro-cap text-mute">ACQUIRING TELEMETRY...</div>
+      </div>
+    </div>
     
-    <table v-else class="data-table">
-      <thead v-once>
+    <table v-else class="premium-table fade-up">
+      <thead>
         <tr>
           <th>ASSET</th>
           <th>ISSUER</th>
           <th>NETWORK</th>
           <th>YIELD (APY)</th>
           <th>RISK</th>
-          <th>ACTION</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="b in store.marketBonds" :key="b.id">
-          <td data-label="ASSET" style="font-weight: 700;">{{ b.token }}</td>
+        <tr v-for="(b, idx) in store.marketBonds" :key="b.id" :class="'delay-' + (idx % 3 + 1)">
+          <td data-label="ASSET">
+            <div class="flex items-center gap-2">
+              <Activity :size="16" color="var(--accent-secondary)" />
+              {{ b.token }}
+            </div>
+          </td>
           <td data-label="ISSUER" class="text-mute">{{ b.issuer }}</td>
-          <td data-label="NETWORK">{{ b.chain.toUpperCase() }}</td>
-          <td data-label="YIELD">{{ b.apy }}%</td>
-          <td data-label="RISK" :style="{ color: b.risk === 'Low' ? '#ffffff' : b.risk === 'Medium' ? 'var(--on-primary-mute)' : '#5a5a5f' }">{{ b.risk.toUpperCase() }}</td>
-          <td data-label="ACTION">
-            <button class="btn-ghost" style="padding: 8px 16px; font-size: 10px;" @click="openInvestModal(b)">INVEST</button>
+          <td data-label="NETWORK">
+            <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-main);">
+              {{ b.chain.toUpperCase() }}
+            </span>
+          </td>
+          <td data-label="YIELD" style="color: var(--accent-success); font-weight: 700;">{{ b.apy }}%</td>
+          <td data-label="RISK">
+            <span class="badge" :class="{ 'low': b.risk === 'Low', 'medium': b.risk === 'Medium', 'high': b.risk === 'High' }">
+              <ShieldCheck v-if="b.risk === 'Low'" :size="12" style="margin-right: 4px;" />
+              {{ b.risk.toUpperCase() }}
+            </span>
+          </td>
+          <td data-label="ACTION" style="text-align: right;">
+            <button class="btn-glass" style="padding: 0.5rem 1rem; font-size: 0.75rem;" @click="openInvestModal(b)">
+              INVEST <ChevronRight :size="14" />
+            </button>
           </td>
         </tr>
       </tbody>
@@ -107,100 +132,82 @@ async function confirmInvest() {
 
     <!-- Invest Modal -->
     <div v-if="selectedBond" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content fade-in">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="modal-content fade-up" style="animation-duration: 0.4s;">
+        <div class="flex justify-between items-start">
           <div>
-            <div class="micro-cap text-mute">ACQUISITION TERMINAL</div>
-            <h2 class="display-lg">{{ selectedBond.token }}</h2>
+            <div class="micro-cap mb-2" style="color: var(--accent-primary);">ACQUISITION TERMINAL</div>
+            <h2 class="display-lg" style="font-size: 2rem;">{{ selectedBond.token }}</h2>
           </div>
-          <button v-if="txStatus !== 'pending' && txStatus !== 'simulating'" style="background: none; border: none; color: var(--on-primary); cursor: pointer; font-size: 24px;" @click="closeModal">✕</button>
+          <button v-if="txStatus !== 'pending' && txStatus !== 'simulating'" class="btn-glass" style="padding: 0.5rem; border-radius: 50%;" @click="closeModal">
+            <X :size="18" />
+          </button>
         </div>
         
-        <div v-if="txStatus === 'success'">
-          <div style="color: #c3e88d; font-size: 48px; margin-bottom: 16px;">✓</div>
-          <p class="body-md" style="color: #c3e88d; font-weight: 700;">TRANSACTION CONFIRMED</p>
-          <p class="micro-cap text-mute mt-4">TX HASH</p>
-          <p class="body-md" style="word-break: break-all;">
-            <a :href="'https://sepolia.etherscan.io/tx/' + txHash" target="_blank" style="color: var(--on-primary);">{{ txHash }}</a>
-          </p>
-          <button class="btn-ghost mt-4" style="width: 100%;" @click="closeModal">CLOSE TERMINAL</button>
+        <div v-if="txStatus === 'success'" class="fade-in">
+          <div class="flex flex-col items-center text-center py-4">
+            <CheckCircle2 :size="64" color="var(--accent-success)" style="margin-bottom: 1rem;" />
+            <p class="body-md" style="color: var(--accent-success); font-weight: 800;">TRANSACTION CONFIRMED</p>
+            <p class="micro-cap mt-4 mb-2">TX HASH</p>
+            <p class="body-md" style="word-break: break-all; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 0.5rem;">
+              <a :href="'https://testnet.arcscan.app/tx/' + txHash" target="_blank" style="color: var(--accent-secondary); text-decoration: none;">{{ txHash }}</a>
+            </p>
+            <button class="btn-primary mt-4" style="width: 100%;" @click="closeModal">CLOSE TERMINAL</button>
+          </div>
         </div>
         
-        <div v-else-if="txStatus === 'simulating'">
+        <div v-else-if="txStatus === 'simulating'" class="fade-in">
           <div class="terminal-box">
-            <div v-for="(step, i) in SIMULATION_STEPS" :key="i" class="micro-cap" :style="{ opacity: i <= simulationStep ? 1 : 0.3, color: i === simulationStep ? '#c3e88d' : 'var(--on-primary)' }">
+            <div v-for="(step, i) in SIMULATION_STEPS" :key="i" class="micro-cap" 
+                 :style="{ opacity: i <= simulationStep ? 1 : 0.3, color: i === simulationStep ? 'var(--accent-success)' : 'var(--text-muted)' }">
               > {{ step }}
               <span v-if="i === simulationStep" class="cursor">_</span>
             </div>
           </div>
         </div>
 
-        <div v-else-if="txStatus === 'pending'">
-          <div class="spinner" style="margin: 24px 0;"></div>
-          <p class="body-md" style="font-weight: 700;">AWAITING NETWORK CONFIRMATION...</p>
-          <p class="micro-cap text-mute mt-4">PLEASE SIGN THE TRANSACTION IN YOUR WALLET</p>
+        <div v-else-if="txStatus === 'pending'" class="fade-in">
+          <div class="flex flex-col items-center justify-center py-8">
+            <div class="spinner mb-4"></div>
+            <p class="body-md" style="font-weight: 800;">AWAITING SIGNATURE...</p>
+            <p class="micro-cap text-mute mt-2 text-center">PLEASE CONFIRM THE TRANSACTION IN YOUR WEB3 WALLET TO INITIATE CCTP BRIDGE.</p>
+          </div>
         </div>
         
-        <div v-else>
-          <div v-if="txStatus === 'error'" style="background: rgba(240, 113, 120, 0.1); border: 1px solid #f07178; padding: 16px; margin-bottom: 24px;">
-            <p class="micro-cap" style="color: #f07178;">ERROR</p>
-            <p class="body-md" style="color: #f07178;">{{ txErrorMsg }}</p>
+        <div v-else class="fade-in">
+          <div v-if="txStatus === 'error'" style="background: rgba(240, 113, 120, 0.1); border: 1px solid var(--accent-danger); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+            <p class="micro-cap" style="color: var(--accent-danger);">ERROR</p>
+            <p class="body-md" style="color: var(--accent-danger); font-size: 0.875rem;">{{ txErrorMsg }}</p>
           </div>
           
-          <p class="body-md text-mute">USDC will be automatically bridged from your Gateway balance to {{ selectedBond.chain.toUpperCase() }} via Circle CCTP.</p>
+          <p class="body-md text-mute" style="font-size: 0.875rem;">
+            USDC will be automatically bridged from your Gateway balance to <strong>{{ selectedBond.chain.toUpperCase() }}</strong> via Circle CCTP.
+          </p>
           
-          <div class="mt-4">
-            <label class="micro-cap text-mute" style="display: block; margin-bottom: 8px;">QUANTITY TO ACQUIRE (USDC)</label>
+          <div class="mt-4 mb-4">
+            <label class="micro-cap" style="display: block; margin-bottom: 0.5rem;">QUANTITY TO ACQUIRE (USDC)</label>
             <input type="number" class="text-input" v-model="investAmount" placeholder="0.00" min="1" />
           </div>
           
-          <div style="border-top: 1px solid var(--hairline-on-dark); padding-top: 24px; margin-top: 24px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;" class="body-md text-mute">
-              <span>YIELD ESTIMATE</span><span>{{ selectedBond.apy }}% APY</span>
+          <div style="background: rgba(255,255,255,0.02); border-radius: 0.5rem; padding: 1rem; border: 1px solid var(--border-light);">
+            <div class="flex justify-between mb-2">
+              <span class="micro-cap">YIELD ESTIMATE</span>
+              <span class="body-md" style="color: var(--accent-success); font-weight: 700; font-size: 0.875rem;">{{ selectedBond.apy }}% APY</span>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 24px;" class="body-md text-mute">
-              <span>NETWORK FEE</span><span>SPONSORED (0.00)</span>
+            <div class="flex justify-between mb-2">
+              <span class="micro-cap">NETWORK FEE</span>
+              <span class="body-md" style="color: var(--text-muted); font-size: 0.875rem;">SPONSORED (0.00)</span>
             </div>
-            <div style="display: flex; justify-content: space-between;" class="body-md">
-              <span style="font-weight: 700;">TOTAL COST</span>
-              <span style="font-weight: 700;">{{ store.fmt(selectedBond.price * (parseInt(investAmount) || 0)) }}</span>
+            <div class="flex justify-between pt-2 mt-2" style="border-top: 1px solid var(--border-light);">
+              <span class="micro-cap" style="color: var(--text-main);">TOTAL COST</span>
+              <span class="body-md" style="font-weight: 800;">{{ store.fmt(selectedBond.price * (parseInt(investAmount) || 0)) }}</span>
             </div>
           </div>
           
-          <button class="btn-ghost" style="width: 100%; margin-top: 16px;" @click="confirmInvest" :disabled="!investAmount || investAmount < 1">AUTHORIZE TRANSACTION</button>
+          <button class="btn-primary mt-4" style="width: 100%;" @click="confirmInvest" :disabled="!investAmount || investAmount < 1">
+            AUTHORIZE TRANSACTION
+          </button>
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  border-top-color: var(--on-primary);
-  animation: spin 1s ease-in-out infinite;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.terminal-box {
-  background: #000;
-  border: 1px solid var(--hairline-on-dark);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 24px 0;
-}
-.cursor {
-  animation: blink 1s step-end infinite;
-}
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-</style>

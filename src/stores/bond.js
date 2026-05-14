@@ -22,7 +22,10 @@ export const useBondStore = defineStore('bond', () => {
 
     isLoading.value = true;
     try {
-      const res = await fetch('https://yields.llama.fi/pools')
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+      const res = await fetch('https://yields.llama.fi/pools', { signal: controller.signal })
+      clearTimeout(timeoutId)
       const data = await res.json()
       
       const filtered = data.data.filter(p => 

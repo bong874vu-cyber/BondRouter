@@ -1,11 +1,11 @@
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useBondStore } from './stores/bond'
 import { useWeb3Store } from './stores/web3'
 import Toast from './components/Toast.vue'
 import { useNumberCounter } from './composables/useCounter'
-import { computed } from 'vue'
+import { Wallet, Activity, ArrowRightLeft, Layers } from 'lucide-vue-next'
 
 const store = useBondStore()
 const web3 = useWeb3Store()
@@ -25,22 +25,37 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
 </script>
 
 <template>
+  <div class="bg-blobs"></div>
   <header class="app-header">
-    <div style="display: flex; align-items: center; gap: 48px;">
-      <RouterLink to="/" class="logo">BOND ROUTER</RouterLink>
+    <div class="flex items-center" style="gap: 3rem;">
+      <RouterLink to="/" class="logo">
+        <Layers :size="24" color="var(--accent-primary)" />
+        BOND ROUTER
+      </RouterLink>
       <nav class="app-nav">
-        <RouterLink to="/discover">Discover</RouterLink>
-        <RouterLink to="/portfolio">Portfolio</RouterLink>
+        <RouterLink to="/discover">
+          <div class="flex items-center gap-2"><Activity :size="16" /> Discover</div>
+        </RouterLink>
+        <RouterLink to="/portfolio">
+          <div class="flex items-center gap-2"><ArrowRightLeft :size="16" /> Portfolio</div>
+        </RouterLink>
       </nav>
     </div>
-    <div style="display: flex; align-items: center; gap: 24px;">
-      <div v-if="web3.error" class="micro-cap" style="color: #f07178;">{{ web3.error }}</div>
+    
+    <div class="flex items-center" style="gap: 1.5rem;">
+      <div v-if="web3.error" class="micro-cap" style="color: var(--accent-danger);">{{ web3.error }}</div>
       <div v-if="web3.isConnected" style="text-align: right;">
-        <div class="micro-cap text-mute">{{ web3.network.toUpperCase() }} NETWORK</div>
-        <div class="body-md" style="font-weight: 700;">{{ Number(displayBalance).toFixed(4) }} USDC</div>
+        <div class="micro-cap text-mute" style="color: var(--accent-success);">{{ web3.network.toUpperCase() }} NETWORK</div>
+        <div class="body-md" style="font-weight: 800;">{{ Number(displayBalance).toFixed(4) }} USDC</div>
       </div>
-      <button v-if="!web3.isConnected" class="btn-ghost" style="padding: 12px 24px; font-size: 10px;" @click="web3.connect()">CONNECT WALLET</button>
-      <button v-else class="btn-ghost btn-ghost-dark" style="padding: 12px 24px; font-size: 10px; border-color: var(--on-primary); color: var(--on-primary); background: transparent;" @click="web3.disconnect()">{{ truncate(web3.address) }}</button>
+      
+      <button v-if="!web3.isConnected" class="btn-primary" @click="web3.connect()">
+        <Wallet :size="18" /> Connect Wallet
+      </button>
+      <button v-else class="btn-glass" @click="web3.disconnect()">
+        <Wallet :size="18" color="var(--accent-primary)" />
+        {{ truncate(web3.address) }}
+      </button>
     </div>
   </header>
   
@@ -50,3 +65,4 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
   
   <Toast />
 </template>
+
