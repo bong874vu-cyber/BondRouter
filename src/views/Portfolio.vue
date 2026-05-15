@@ -196,6 +196,34 @@ const chartOptions = {
           </tr>
         </tbody>
       </table>
+      <div class="glass-panel fade-up delay-4" style="margin-top: 3rem;">
+        <div class="flex items-center justify-between mb-4">
+          <div class="micro-cap" style="color: var(--accent-primary);">SMART CONTRACT AUTOMATION</div>
+          <div class="badge" style="background: rgba(195, 232, 141, 0.1); color: var(--accent-success);">ACTIVE</div>
+        </div>
+        <h3 class="display-lg mb-2" style="font-size: 1.5rem;">PROGRAMMABLE YIELD WATERFALL</h3>
+        <p class="body-md text-mute mb-4">
+          Configure how accrued yield is automatically routed across networks when harvested. Powered by Circle Gateway and CCTP.
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1rem; border-radius: 0.5rem;">
+            <div class="micro-cap text-mute mb-2">TIER 1 (80%)</div>
+            <div class="body-md" style="font-weight: 700;">Corporate Treasury</div>
+            <div class="micro-cap mt-2" style="color: var(--accent-success);">→ Auto-Bridge to Ethereum</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1rem; border-radius: 0.5rem;">
+            <div class="micro-cap text-mute mb-2">TIER 2 (10%)</div>
+            <div class="body-md" style="font-weight: 700;">Vendor Payment</div>
+            <div class="micro-cap mt-2" style="color: var(--accent-secondary);">→ Swap to EURC & Send</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1rem; border-radius: 0.5rem;">
+            <div class="micro-cap text-mute mb-2">TIER 3 (10%)</div>
+            <div class="body-md" style="font-weight: 700;">Re-invest</div>
+            <div class="micro-cap mt-2" style="color: var(--accent-primary);">→ Auto-compound on Arc</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

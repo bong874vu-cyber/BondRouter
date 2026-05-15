@@ -94,19 +94,17 @@ export const useWeb3Store = defineStore('web3', () => {
     network.value = ''
   }
   
-  // Real transaction sender for proof of investment integrated with Circle App Kit (CCTP Bridge)
-  async function sendInvestmentTx(bondId, amountStr, destChain = 'Arc_Testnet') {
+  // Real transaction sender integrating with Arc Testnet
+  async function sendInvestmentTx(action, bondIdOrAsset, amountStr, destChain = 'Arc_Testnet') {
     if (!isConnected.value || !window.ethereum) throw new Error("WALLET NOT CONNECTED.")
     const provider = new BrowserProvider(window.ethereum)
     const signer = await provider.getSigner()
     
     // Demonstrate usage of Circle App Kit for cross-chain bridging operations
-    // Non-blocking execution to prevent wallet hangs without proper API keys
     ;(async () => {
       try {
         const adapter = await createAdapterFromProvider(provider);
         const kit = new AppKit();
-        
         console.log(`[Circle App Kit] Initiating CCTP Bridge to ${destChain}...`);
         await kit.bridge({
           from: { adapter, chain: "Ethereum_Sepolia" },
@@ -118,24 +116,42 @@ export const useWeb3Store = defineStore('web3', () => {
       }
     })();
 
-    // Arc Testnet requires real on-chain activity.
-    // We send a 0-value ping transaction to generate a valid on-chain hash.
-    const tx = await signer.sendTransaction({
-      to: '0x000000000000000000000000000000000000dEaD',
-      value: 0n
-    })
+    // Real Smart Contract interaction on Arc Testnet
+    const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
+
+    const ABI = [
+      "function invest(string bondId, uint256 amount) external payable",
+      "function submitConfidentialOrder(string asset, uint256 sizeHash) external payable",
+      "function harvestYield(uint256 amount) external"
+    ];
+    
+    const ethers = await import('ethers');
+    const contract = new ethers.Contract(actualAddress, ABI, signer);
+
+    let tx;
+    const valueToSend = ethers.parseEther(amountStr.toString());
+
+    if (action === 'INVEST') {
+       tx = await contract.invest(bondIdOrAsset, BigInt(amountStr), { value: valueToSend });
+    } else if (action === 'DARK_POOL_ORDER') {
+       // Mock ZK hash for the confidential size
+       const sizeHash = BigInt("0x" + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join(''));
+       tx = await contract.submitConfidentialOrder(bondIdOrAsset, sizeHash, { value: valueToSend });
+    }
     
     const receipt = await tx.wait()
     return receipt.hash
   }
 
-  // Demonstrate Circle Unified Balance product
+  // Demonstrate Circle Unified Balance product and Harvest Yield
   async function harvestYieldCrossChain(amountStr) {
     if (!isConnected.value || !window.ethereum) return;
     
+    const provider = new BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+
     ;(async () => {
       try {
-        const provider = new BrowserProvider(window.ethereum);
         const adapter = await createAdapterFromProvider(provider);
         const kit = new AppKit();
         
@@ -160,6 +176,20 @@ export const useWeb3Store = defineStore('web3', () => {
         console.log("Unified Balance execution note:", e.message)
       }
     })();
+
+    // Real Smart Contract interaction
+    try {
+      const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
+  
+      const ABI = ["function harvestYield(uint256 amount) external"];
+      const ethers = await import('ethers');
+      const contract = new ethers.Contract(actualAddress, ABI, signer);
+      
+      const tx = await contract.harvestYield(BigInt(Math.floor(amountStr)));
+      await tx.wait();
+    } catch(err) {
+      console.error("Harvest tx failed:", err);
+    }
   }
 
   return { isConnected, address, balance, network, error, connect, disconnect, sendInvestmentTx, harvestYieldCrossChain }

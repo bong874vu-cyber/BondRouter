@@ -39,6 +39,9 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
         <RouterLink to="/portfolio">
           <div class="flex items-center gap-2"><ArrowRightLeft :size="16" /> Portfolio</div>
         </RouterLink>
+        <RouterLink to="/darkpool">
+          <div class="flex items-center gap-2"><Layers :size="16" /> Dark Pool</div>
+        </RouterLink>
       </nav>
     </div>
     

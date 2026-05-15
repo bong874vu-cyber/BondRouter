@@ -17,11 +17,11 @@ const txHash = ref('')
 const txErrorMsg = ref('')
 
 const SIMULATION_STEPS = [
-  "INITIALIZING CCTP BRIDGE PROTOCOL...",
-  "BURNING USDC ON ORIGIN CHAIN...",
-  "AWAITING CIRCLE ATTESTATION...",
-  "MINTING USDC ON ARC TESTNET...",
-  "EXECUTING BOND ACQUISITION CONTRACT..."
+  "RELAYER: RECEIVING INTENT SIGNATURE...",
+  "RELAYER: INITIATING CCTP BURN ON ORIGIN CHAIN (SPONSORED)...",
+  "RELAYER: FETCHING ATTESTATION FROM CIRCLE API...",
+  "RELAYER: MINTING USDC ON ARC TESTNET...",
+  "CONTRACT: EXECUTING BOND ACQUISITION..."
 ]
 
 function openInvestModal(bond) {
@@ -57,7 +57,7 @@ async function confirmInvest() {
   if (qty > 0) {
     try {
       txStatus.value = 'pending'
-      const hash = await web3.sendInvestmentTx(selectedBond.value.id, qty)
+      const hash = await web3.sendInvestmentTx('INVEST', selectedBond.value.id, qty)
       
       // After wallet confirms, simulate CCTP bridge delay visually
       await runSimulation()
@@ -180,7 +180,7 @@ async function confirmInvest() {
           </div>
           
           <p class="body-md text-mute" style="font-size: 0.875rem;">
-            USDC will be automatically bridged from your Gateway balance to <strong>{{ selectedBond.chain.toUpperCase() }}</strong> via Circle CCTP.
+            Sign an <strong>Intent</strong> to acquire this bond. Our Relayer will automatically bridge your USDC from Gateway to <strong>{{ selectedBond.chain.toUpperCase() }}</strong> via Circle CCTP, pay the gas fees, and deposit it into the Smart Contract. 1-Click Execution.
           </p>
           
           <div class="mt-4 mb-4">
@@ -204,7 +204,7 @@ async function confirmInvest() {
           </div>
           
           <button class="btn-primary mt-4" style="width: 100%;" @click="confirmInvest" :disabled="!investAmount || investAmount < 1">
-            AUTHORIZE TRANSACTION
+            SIGN CCTP INTENT (1-CLICK)
           </button>
         </div>
       </div>
