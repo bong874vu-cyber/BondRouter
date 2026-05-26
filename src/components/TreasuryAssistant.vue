@@ -261,6 +261,13 @@ function handleCloseTour() {
   gap: 1rem;
 }
 
+@media (max-width: 768px) {
+  .assistant-wrapper {
+    bottom: calc(68px + 1.25rem + env(safe-area-inset-bottom)) !important;
+    right: 1.25rem !important;
+  }
+}
+
 .floating-trigger {
   width: 56px;
   height: 56px;
