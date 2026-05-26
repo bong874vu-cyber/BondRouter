@@ -293,7 +293,7 @@ onMounted(async () => {
             Select how your earned interest is automatically split and routed once collected. All transfers are securely processed in stable digital dollars (USDC) with no manual wire transfers required.
           </p>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem;">
+          <div class="grid-three-columns-responsive">
             <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.25rem; border-radius: 0px;">
               <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem;">RESERVES (80%)</div>
               <div class="body-md" style="font-weight: 700; color: var(--text-main);">Main Corporate Treasury</div>

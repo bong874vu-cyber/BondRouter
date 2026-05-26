@@ -751,6 +751,20 @@ body {
   }
 }
 
+/* Collapsible Grid System for Three Columns */
+.grid-three-columns-responsive {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .grid-three-columns-responsive {
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+}
+
 /* Centralized High-Performance Loading & Shimmer Animation System */
 @keyframes shimmer {
   0% {
