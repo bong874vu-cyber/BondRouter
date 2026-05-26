@@ -7,7 +7,7 @@ import Toast from './components/Toast.vue'
 import WalletModal from './components/WalletModal.vue'
 import TreasuryAssistant from './components/TreasuryAssistant.vue'
 import { useNumberCounter } from './composables/useCounter'
-import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen } from 'lucide-vue-next'
+import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen, Settings } from 'lucide-vue-next'
 
 const store = useBondStore()
 const web3 = useWeb3Store()
@@ -48,6 +48,9 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
         <RouterLink to="/docs">
           <div class="flex items-center gap-2"><BookOpen :size="16" /> Documentation</div>
         </RouterLink>
+        <RouterLink to="/settings">
+          <div class="flex items-center gap-2"><Settings :size="16" /> Settings</div>
+        </RouterLink>
       </nav>
     </div>
     
@@ -79,19 +82,19 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
   <div class="mobile-tab-bar">
     <RouterLink to="/discover">
       <Activity :size="20" />
-      <span>Savings Desk</span>
+      <span>Savings</span>
     </RouterLink>
     <RouterLink to="/portfolio">
       <Wallet :size="20" />
-      <span>My Treasury</span>
+      <span>Treasury</span>
     </RouterLink>
     <RouterLink to="/darkpool">
       <ShieldCheck :size="20" />
-      <span>Shielded Trading</span>
+      <span>Shield</span>
     </RouterLink>
-    <RouterLink to="/docs">
-      <BookOpen :size="20" />
-      <span>Docs</span>
+    <RouterLink to="/settings">
+      <Settings :size="20" />
+      <span>Settings</span>
     </RouterLink>
   </div>
 

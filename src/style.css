@@ -1042,3 +1042,135 @@ body {
   0% { transform: scale(1); opacity: 0.8; }
   100% { transform: scale(2.8); opacity: 0; }
 }
+
+/* ==========================================================================
+   Circle & Cryptographic Custom Components Design System
+   ========================================================================== */
+
+/* Pedersen Cryptographic Monitor console */
+.pedersen-monitor {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-light);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 0px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pedersen-monitor::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, var(--accent-gold), transparent);
+}
+
+.pedersen-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.pedersen-console-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  font-family: monospace;
+  font-size: 0.72rem;
+}
+
+.pedersen-console-row:last-child {
+  border-bottom: none;
+}
+
+/* Biometric device scan zone panel */
+.biometric-scan-panel {
+  padding: 2.25rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px dashed var(--border-light);
+  margin-bottom: 1.5rem;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.biometric-scan-panel.authenticating {
+  background: rgba(130, 170, 255, 0.03);
+  border: 1px solid var(--accent-secondary);
+}
+
+.biometric-scan-panel.success {
+  background: rgba(195, 232, 141, 0.03);
+  border: 1px solid var(--accent-success);
+}
+
+/* Stepper progress component */
+.zk-progress-step {
+  display: flex;
+  align-items: start;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-left: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.zk-progress-step.active {
+  background: rgba(130, 170, 255, 0.05);
+  border-left-color: var(--accent-secondary);
+}
+
+.zk-progress-step.completed {
+  opacity: 1;
+}
+
+.zk-progress-step.pending {
+  opacity: 0.3;
+}
+
+/* Interactive Toggle Buttons for Treasury */
+.btn-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  background: transparent;
+  border: 1px solid var(--border-light);
+}
+
+.btn-toggle.active {
+  background: rgba(195, 232, 141, 0.08);
+  color: var(--accent-success);
+  border-color: var(--accent-success);
+}
+
+.btn-toggle.inactive {
+  background: rgba(240, 113, 120, 0.08);
+  color: var(--accent-danger);
+  border-color: var(--accent-danger);
+}
+
+.btn-toggle:hover {
+  filter: brightness(1.15);
+}
+
+/* Callout policy box */
+.policy-box {
+  display: flex;
+  align-items: start;
+  gap: 0.85rem;
+  padding: 1.25rem;
+  background: rgba(191, 168, 133, 0.04);
+  border: 1px dashed var(--accent-gold);
+  border-radius: 0px;
+}
+
+

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { BrowserProvider, formatEther, parseEther, Contract } from 'ethers'
 import { AppKit } from '@circle-fin/app-kit'
 import { createAdapterFromProvider } from '@circle-fin/adapter-ethers-v6'
+import contractAddress from '../contractAddress.json'
 
 export const useWeb3Store = defineStore('web3', () => {
   const isConnected = ref(false)
@@ -118,7 +119,7 @@ export const useWeb3Store = defineStore('web3', () => {
     })();
 
     // Real Smart Contract interaction on Arc Testnet
-    const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
+    const actualAddress = contractAddress.BondRouter;
 
     const ABI = [
       "function invest(string bondId, uint256 amount) external payable",
@@ -182,7 +183,7 @@ export const useWeb3Store = defineStore('web3', () => {
 
     // Real Smart Contract interaction
     try {
-      const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
+      const actualAddress = contractAddress.BondRouter;
   
       const ABI = ["function harvestYield(uint256 amount) external"];
       const contract = new Contract(actualAddress, ABI, signer);
@@ -198,7 +199,7 @@ export const useWeb3Store = defineStore('web3', () => {
     try {
       if (!window.ethereum) return null;
       const provider = new BrowserProvider(window.ethereum)
-      const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
+      const actualAddress = contractAddress.BondRouter;
       const ABI = [
         "event DarkPoolOrder(address indexed user, string asset, uint256 confidentialSizeHash)"
       ];
@@ -233,7 +234,7 @@ export const useWeb3Store = defineStore('web3', () => {
     try {
       if (!window.ethereum) return [];
       const provider = new BrowserProvider(window.ethereum)
-      const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
+      const actualAddress = contractAddress.BondRouter;
       const ABI = [
         "event Investment(address indexed user, string bondId, uint256 amount)"
       ];

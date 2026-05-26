@@ -5,7 +5,7 @@ import { useUIStore } from '../stores/ui'
 import { useWeb3Store } from '../stores/web3'
 import { 
   Sparkles, HelpCircle, Shield, X, ArrowRight, ArrowLeft, 
-  Check, Play, Info, Eye, DollarSign, RefreshCw, ShieldAlert
+  Check, Play, Info, Eye, DollarSign, RefreshCw, ShieldAlert, Landmark
 } from 'lucide-vue-next'
 
 const ui = useUIStore()
@@ -188,7 +188,7 @@ function handleCloseTour() {
     <div v-if="assistantOpen" class="assistant-card fade-up">
       <div class="assistant-header">
         <div class="flex items-center gap-2">
-          <LandmarkIcon class="assistant-logo-icon" />
+          <Landmark class="assistant-logo-icon" />
           <div>
             <h4 class="assistant-title">Treasury Assistant</h4>
             <p class="assistant-subtitle">Human-First Finance Copilot</p>
