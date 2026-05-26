@@ -177,7 +177,7 @@ async function confirmInvest() {
 
     <!-- Invest Modal -->
     <div v-if="selectedBond" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content fade-up" style="animation-duration: 0.4s; width: 560px;">
+      <div class="modal-content fade-up" style="animation-duration: 0.4s; max-width: 560px; width: 92%; margin: 16px;">
         <div class="flex justify-between items-start">
           <div>
             <div class="micro-cap mb-2" style="color: var(--accent-primary);">SECURE DEPOSIT PANEL</div>

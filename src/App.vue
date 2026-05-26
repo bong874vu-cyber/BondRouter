@@ -76,6 +76,25 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
     </RouterView>
   </main>
   
+  <div class="mobile-tab-bar">
+    <RouterLink to="/discover">
+      <Activity :size="20" />
+      <span>Savings Desk</span>
+    </RouterLink>
+    <RouterLink to="/portfolio">
+      <Wallet :size="20" />
+      <span>My Treasury</span>
+    </RouterLink>
+    <RouterLink to="/darkpool">
+      <ShieldCheck :size="20" />
+      <span>Shielded Trading</span>
+    </RouterLink>
+    <RouterLink to="/docs">
+      <BookOpen :size="20" />
+      <span>Docs</span>
+    </RouterLink>
+  </div>
+
   <Toast />
   <WalletModal :isOpen="isWalletModalOpen" @close="isWalletModalOpen = false" />
   <TreasuryAssistant />

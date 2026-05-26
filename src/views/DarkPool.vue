@@ -91,7 +91,7 @@ onMounted(async () => {
           </select>
         </div>
         
-        <div class="flex gap-4 mb-4">
+        <div class="flex-responsive-row mb-4">
           <div style="flex: 1;">
             <label class="micro-cap block mb-2">SHIELDED QUANTITY (USDC)</label>
             <input type="number" class="text-input" v-model="size" placeholder="Enter amount..." style="width: 100%;" />

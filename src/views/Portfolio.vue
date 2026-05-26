@@ -162,7 +162,7 @@ onMounted(async () => {
 
     <!-- Skeleton Dashboard Loader -->
     <div v-if="isFetchingHoldings" class="fade-in">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 3rem;">
+      <div class="stats-grid">
         <div class="shimmer-card skeleton" style="border-radius: 0px;">
           <div class="skeleton-text short" style="height: 12px; margin-bottom: 12px;"></div>
           <div class="skeleton-title" style="height: 32px; width: 60%; margin: 0;"></div>
@@ -223,7 +223,7 @@ onMounted(async () => {
       </div>
 
       <div v-else>
-        <div class="fade-up delay-1" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 3rem;">
+        <div class="stats-grid fade-up delay-1">
           <div class="glass-panel">
             <div class="flex items-center gap-2 micro-cap mb-2"><WalletCards :size="14" /> TOTAL BALANCE</div>
             <div class="display-lg">{{ store.fmt(displayTotalValue) }}</div>
