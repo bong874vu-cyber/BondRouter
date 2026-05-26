@@ -142,6 +142,7 @@ body {
   transition: color 0.3s ease;
   position: relative;
   padding-bottom: 0.25rem;
+  white-space: nowrap;
 }
 
 .app-nav a:hover, .app-nav a.router-link-active {
@@ -668,6 +669,60 @@ body {
   justify-content: center;
 }
 
+/* Premium Responsiveness & Spacing Scale for high-end laptops & desktop screens */
+@media (max-width: 1320px) {
+  .app-header {
+    padding: 1rem 1.75rem;
+  }
+  .app-header > .flex.items-center {
+    gap: 1.75rem !important;
+  }
+  .app-nav {
+    gap: 1.5rem;
+  }
+  .app-nav a {
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+  }
+  .header-status-label {
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 1160px) {
+  .app-header {
+    padding: 1rem 1.25rem;
+  }
+  .app-header > .flex.items-center {
+    gap: 1.25rem !important;
+  }
+  .app-nav {
+    gap: 1rem;
+  }
+  .app-nav a {
+    font-size: 0.75rem;
+  }
+  .header-status-label {
+    display: none !important; /* Hide long label on medium screen */
+  }
+}
+
+@media (max-width: 1024px) {
+  .app-nav {
+    display: none !important;
+  }
+  .app-header {
+    padding: 1rem 1.5rem;
+  }
+  .page-container {
+    padding: 5.5rem 1rem 2rem;
+  }
+  .header-status-label {
+    display: none !important;
+  }
+}
+
 @media (max-width: 992px) {
   .editorial-split {
     flex-direction: column;
@@ -688,10 +743,6 @@ body {
   .display-xxl { font-size: 3rem; }
   .display-xl { font-size: 2.2rem; }
   .display-lg { font-size: 1.75rem; }
-  .app-nav { display: none; }
-  .app-header { padding: 1rem 1.5rem; }
-  .page-container { padding: 5.5rem 1rem 2rem; }
-  .header-status-label { display: none !important; }
 
   .premium-table, .premium-table tbody, .premium-table tr, .premium-table td {
     display: block;
@@ -731,7 +782,6 @@ body {
   .app-header { padding: 0.75rem 1rem !important; }
   .logo { font-size: 0.9rem !important; gap: 0.4rem !important; }
   .logo svg { width: 18px; height: 18px; }
-  .header-status-label { display: none !important; }
   .btn-glass { padding: 0.4rem 0.75rem !important; font-size: 0.75rem !important; }
 }
 
@@ -1005,7 +1055,7 @@ body {
   color: var(--accent-gold);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .mobile-tab-bar {
     display: flex;
   }
