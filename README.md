@@ -190,6 +190,44 @@ The waterfall runs inside a Vite dev server middleware plugin that serves `/api/
 
 <br>
 
+### Screenshots
+
+**Landing — Editorial Split Layout**
+
+![Landing page with live statistics, rotating emblem, and guided tour entry](public/captures/1_home.png)
+
+<br>
+
+**Discover Yield — Live Institutional Pool Aggregation**
+
+![Discover Yield screen showing DeFi Llama pool data, stability ratings, and 1-click USDC deposit](public/captures/2_discover_yield.png)
+
+<br>
+
+**My Treasury — Portfolio & Growth Projection**
+
+![My Treasury dashboard with portfolio positions, 12-month growth chart, and yield harvest trigger](public/captures/3_my_treasury.png)
+
+<br>
+
+**Shielded Trading — OTC Dark Pool**
+
+![Shielded Trading desk with Pedersen Commitment monitor, ZK compilation overlay, and settlement log](public/captures/4_shield_trading.png)
+
+<br>
+
+**Documentation — Three-Tab Resource Hub**
+
+![Documentation center with User Manual, Under the Hood, and Interactive FAQs tabs](public/captures/5_documentation.png)
+
+<br>
+
+**Settings — Circle API & Gas Station Controls**
+
+![Settings panel with Circle API status, Passkey SCA registration, and Gas Station sponsorship toggle](public/captures/6_settings.png)
+
+<br>
+
 ---
 
 <br>
