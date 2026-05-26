@@ -141,7 +141,7 @@ onMounted(async () => {
 
 <template>
   <div class="page-container fade-in">
-    <div class="flex justify-between items-end" style="margin-bottom: 4rem;">
+    <div class="flex-responsive-header" style="margin-bottom: 3rem;">
       <div>
         <div class="flex items-center gap-2 mb-2 micro-cap" style="color: var(--accent-primary);">
           <WalletCards :size="14" /> TREASURY SUMMARY
