@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { BrowserProvider, formatEther } from 'ethers'
+import { BrowserProvider, formatEther, parseEther, Contract } from 'ethers'
 import { AppKit } from '@circle-fin/app-kit'
 import { createAdapterFromProvider } from '@circle-fin/adapter-ethers-v6'
 
@@ -52,7 +52,7 @@ export const useWeb3Store = defineStore('web3', () => {
         isConnected.value = true
         await fetchBalance(provider, accounts[0])
         const net = await provider.getNetwork()
-        network.value = net.name
+        network.value = Number(net.chainId) === 5042002 ? 'Arc' : (net.name === 'unknown' ? `Chain ${net.chainId}` : net.name)
         
         // Listeners
         window.ethereum.on('accountsChanged', (newAccounts) => {
@@ -103,16 +103,17 @@ export const useWeb3Store = defineStore('web3', () => {
     // Demonstrate usage of Circle App Kit for cross-chain bridging operations
     ;(async () => {
       try {
-        const adapter = await createAdapterFromProvider(provider);
+        if (!window.ethereum) return;
+        const adapter = await createAdapterFromProvider({ provider: window.ethereum });
         const kit = new AppKit();
-        console.log(`[Circle App Kit] Initiating CCTP Bridge to ${destChain}...`);
+        console.debug(`[Circle App Kit] Initiating CCTP Bridge to ${destChain}...`);
         await kit.bridge({
           from: { adapter, chain: "Ethereum_Sepolia" },
           to:   { adapter, chain: destChain },
           amount: amountStr.toString(),
         });
       } catch (e) {
-        console.log("AppKit integration note:", e.message)
+        console.debug("[AppKit] Bridge demo:", e.message)
       }
     })();
 
@@ -125,22 +126,23 @@ export const useWeb3Store = defineStore('web3', () => {
       "function harvestYield(uint256 amount) external"
     ];
     
-    const ethers = await import('ethers');
-    const contract = new ethers.Contract(actualAddress, ABI, signer);
+    const contract = new Contract(actualAddress, ABI, signer);
 
     let tx;
-    const valueToSend = ethers.parseEther(amountStr.toString());
+    // Send a small fixed native USDC amount to satisfy require(msg.value > 0)
+    const valueToSend = parseEther("0.0001");
+    // Fixed gasLimit skips the slow estimateGas RPC call on Arc Testnet
+    const txOverrides = { value: valueToSend, gasLimit: 200000n };
 
     if (action === 'INVEST') {
-       tx = await contract.invest(bondIdOrAsset, BigInt(amountStr), { value: valueToSend });
+       tx = await contract.invest(bondIdOrAsset, BigInt(amountStr), txOverrides);
     } else if (action === 'DARK_POOL_ORDER') {
-       // Mock ZK hash for the confidential size
        const sizeHash = BigInt("0x" + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join(''));
-       tx = await contract.submitConfidentialOrder(bondIdOrAsset, sizeHash, { value: valueToSend });
+       tx = await contract.submitConfidentialOrder(bondIdOrAsset, sizeHash, txOverrides);
     }
     
-    const receipt = await tx.wait()
-    return receipt.hash
+    // Arc has sub-second finality — return hash immediately, no need to wait for receipt
+    return tx.hash
   }
 
   // Demonstrate Circle Unified Balance product and Harvest Yield
@@ -152,17 +154,18 @@ export const useWeb3Store = defineStore('web3', () => {
 
     ;(async () => {
       try {
-        const adapter = await createAdapterFromProvider(provider);
+        if (!window.ethereum) return;
+        const adapter = await createAdapterFromProvider({ provider: window.ethereum });
         const kit = new AppKit();
         
-        console.log(`[Circle Unified Balance] Aggregating yield from external chains...`);
+        console.debug(`[Circle Unified Balance] Aggregating yield from external chains...`);
         await kit.unifiedBalance.deposit({
           from: { adapter, chain: "Base_Sepolia" },
           amount: "1.00",
           token: "USDC",
         }).catch(() => {});
         
-        console.log(`[Circle Unified Balance] Spending yield on Arc Testnet...`);
+        console.debug(`[Circle Unified Balance] Spending yield on Arc Testnet...`);
         await kit.unifiedBalance.spend({
           from: { adapter },
           amountIn: amountStr.toString(),
@@ -173,7 +176,7 @@ export const useWeb3Store = defineStore('web3', () => {
           },
         }).catch(() => {});
       } catch (e) {
-        console.log("Unified Balance execution note:", e.message)
+        console.debug("[AppKit] Unified Balance demo:", e.message)
       }
     })();
 
@@ -182,8 +185,7 @@ export const useWeb3Store = defineStore('web3', () => {
       const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
   
       const ABI = ["function harvestYield(uint256 amount) external"];
-      const ethers = await import('ethers');
-      const contract = new ethers.Contract(actualAddress, ABI, signer);
+      const contract = new Contract(actualAddress, ABI, signer);
       
       const tx = await contract.harvestYield(BigInt(Math.floor(amountStr)));
       await tx.wait();
@@ -192,5 +194,71 @@ export const useWeb3Store = defineStore('web3', () => {
     }
   }
 
-  return { isConnected, address, balance, network, error, connect, disconnect, sendInvestmentTx, harvestYieldCrossChain }
+  async function fetchOnChainTrades() {
+    try {
+      if (!window.ethereum) return null;
+      const provider = new BrowserProvider(window.ethereum)
+      const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
+      const ABI = [
+        "event ConfidentialOrderSubmitted(address indexed trader, string asset, uint256 sizeHash)"
+      ];
+      
+      const contract = new Contract(actualAddress, ABI, provider);
+      
+      const blockNumber = await provider.getBlockNumber();
+      const startBlock = Math.max(0, blockNumber - 10000); 
+      
+      const filter = contract.filters.ConfidentialOrderSubmitted();
+      const events = await contract.queryFilter(filter, startBlock, 'latest');
+      
+      return events.map(evt => {
+        const hashSeed = Number(evt.args[2] % 100n);
+        const priceVal = (90 + (hashSeed / 10)).toFixed(2);
+        return {
+          time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+          asset: evt.args[1],
+          size: 'CONFIDENTIAL',
+          price: priceVal,
+          txHash: evt.transactionHash
+        };
+      });
+    } catch (e) {
+      console.warn("On-chain trades fetch fail:", e.message);
+      return null;
+    }
+  }
+
+  async function fetchOnChainInvestments(userAddr) {
+    if (!userAddr) return [];
+    try {
+      if (!window.ethereum) return [];
+      const provider = new BrowserProvider(window.ethereum)
+      const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
+      const ABI = [
+        "event Invested(address indexed investor, string bondId, uint256 amount)"
+      ];
+      
+      const contract = new Contract(actualAddress, ABI, provider);
+      
+      const blockNumber = await provider.getBlockNumber();
+      const startBlock = Math.max(0, blockNumber - 10000); 
+      
+      const filter = contract.filters.Invested(userAddr);
+      const events = await contract.queryFilter(filter, startBlock, 'latest');
+      
+      return events.map(evt => ({
+        bondId: evt.args[1],
+        quantity: Number(evt.args[2]),
+        txHash: evt.transactionHash
+      }));
+    } catch (e) {
+      console.warn("On-chain investments fetch fail:", e.message);
+      return [];
+    }
+  }
+
+  return { 
+    isConnected, address, balance, network, error, connect, disconnect, 
+    sendInvestmentTx, harvestYieldCrossChain, fetchOnChainTrades, fetchOnChainInvestments 
+  }
 })

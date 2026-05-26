@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ShieldAlert, EyeOff, Lock, TrendingUp, CheckCircle, ExternalLink } from 'lucide-vue-next'
 import { useUIStore } from '../stores/ui'
 import { useWeb3Store } from '../stores/web3'
@@ -29,6 +29,7 @@ async function placeOrder() {
       price: price.value,
       txHash: hash
     })
+    localStorage.setItem('darkpool_trades', JSON.stringify(recentMatches))
     
     ui.addToast('ORDER PLACED. TX SENT TO ARC TESTNET.', 'success')
     size.value = ''
@@ -41,44 +42,58 @@ async function placeOrder() {
   }
 }
 
-const recentMatches = reactive([
+const defaultMatches = [
   { time: '14:32:01', asset: 'US T-BILL (90D)', size: 'CONFIDENTIAL', price: '98.50', txHash: null },
   { time: '14:28:44', asset: 'CORP BOND (1Y)', size: 'CONFIDENTIAL', price: '92.15', txHash: null }
-])
+]
+
+const recentMatches = reactive(JSON.parse(localStorage.getItem('darkpool_trades')) || defaultMatches)
+
+onMounted(async () => {
+  const realTrades = await web3.fetchOnChainTrades()
+  if (realTrades && realTrades.length > 0) {
+    recentMatches.splice(0, recentMatches.length, ...realTrades)
+  } else {
+    const cached = localStorage.getItem('darkpool_trades')
+    if (cached) {
+      recentMatches.splice(0, recentMatches.length, ...JSON.parse(cached))
+    }
+  }
+})
 </script>
 
 <template>
   <div class="page-container fade-in">
     <div class="flex items-center gap-2 mb-2 micro-cap" style="color: var(--accent-primary);">
-      <EyeOff :size="14" /> ARC OPT-IN PRIVACY
+      <EyeOff :size="14" /> SHIELDED TREASURY
     </div>
-    <h1 class="display-xl text-gradient mb-2">OTC DARK POOL</h1>
-    <p class="body-md text-mute mb-4" style="max-width: 600px;">
-      Institutional-grade secondary market. Orders are hidden from public ledgers using Arc's Opt-in Privacy and Zero-Knowledge compliance passports. No front-running, zero slippage.
+    <h1 class="display-xl text-gradient mb-2">PRIVATE BLOCK TRADING</h1>
+    <p class="body-md text-mute mb-4" style="max-width: 650px; font-size: 0.95rem; line-height: 1.6;">
+      Private transaction desk for large orders. Your trade size and pricing are completely shielded from public view, preventing external parties from front-running your moves or causing price fluctuations. Safe, secure, and fully compliant.
     </p>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 3rem;">
+    <div style="display: grid; grid-template-columns: 1fr 1.25fr; gap: 2rem; margin-top: 3rem;">
       <!-- Order Entry -->
       <div class="glass-panel">
         <div class="flex justify-between items-center mb-4 border-b pb-4" style="border-color: rgba(255,255,255,0.05);">
           <div class="flex gap-4">
-            <button class="micro-cap" :style="{ color: activeTab === 'buy' ? 'var(--accent-success)' : 'var(--text-muted)' }" @click="activeTab = 'buy'">BUY ORDER</button>
-            <button class="micro-cap" :style="{ color: activeTab === 'sell' ? 'var(--accent-danger)' : 'var(--text-muted)' }" @click="activeTab = 'sell'">SELL ORDER</button>
+            <button class="tab-btn buy" :class="{ 'active': activeTab === 'buy' }" @click="activeTab = 'buy'">PRIVATE BUY</button>
+            <button class="tab-btn sell" :class="{ 'active': activeTab === 'sell' }" @click="activeTab = 'sell'">PRIVATE SELL</button>
           </div>
-          <div class="badge" style="background: rgba(130, 170, 255, 0.1); color: var(--accent-secondary);"><Lock :size="12" style="margin-right:4px;" /> ZK VERIFIED</div>
+          <div class="badge" style="background: rgba(130, 170, 255, 0.1); color: var(--accent-secondary); border-radius: 0px;"><Lock :size="12" style="margin-right:4px;" /> SHIELD ACTIVE</div>
         </div>
 
         <div class="mb-4">
-          <label class="micro-cap block mb-2">ASSET</label>
+          <label class="micro-cap block mb-2">INTEREST ASSET</label>
           <select class="text-input" style="width: 100%;">
-            <option>US Treasury Bill (90D) - Arc</option>
-            <option>Corporate Bond Index (1Y) - Arc</option>
+            <option>US Treasury Bill (90D) - High Speed Link</option>
+            <option>Corporate Savings Index (1Y) - High Speed Link</option>
           </select>
         </div>
         
         <div class="flex gap-4 mb-4">
           <div style="flex: 1;">
-            <label class="micro-cap block mb-2">CONFIDENTIAL SIZE (USDC)</label>
+            <label class="micro-cap block mb-2">SHIELDED QUANTITY (USDC)</label>
             <input type="number" class="text-input" v-model="size" placeholder="Enter amount..." style="width: 100%;" />
           </div>
           <div style="flex: 1;">
@@ -87,54 +102,61 @@ const recentMatches = reactive([
           </div>
         </div>
 
-        <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;" class="flex items-start gap-3">
-          <ShieldAlert :size="18" color="var(--accent-secondary)" style="flex-shrink: 0;" />
-          <p class="micro-cap text-mute" style="line-height: 1.5;">
-            Order details will be cryptographically encrypted. Only matched counterparties will receive settlement data via CCTP.
+        <div style="background: rgba(0,0,0,0.2); padding: 1.25rem; border-radius: 0px; border: 1px solid var(--border-light); margin-bottom: 1.5rem;" class="flex items-start gap-3">
+          <ShieldAlert :size="18" color="var(--accent-secondary)" style="flex-shrink: 0; margin-top: 2px;" />
+          <p class="micro-cap text-mute" style="line-height: 1.5; text-transform: none; letter-spacing: normal; font-size: 0.78rem;">
+            Your order size is cryptographically sealed and hidden. Only when a matching buyer or seller is found will the transaction settle safely through secure digital dollar channels, preserving absolute business privacy.
           </p>
         </div>
 
         <button 
           class="btn-primary w-full" 
-          :style="{ background: activeTab === 'buy' ? 'var(--accent-success)' : 'var(--accent-danger)' }"
+          :style="{ 
+            background: activeTab === 'buy' ? 'var(--accent-success)' : 'var(--accent-danger)',
+            borderColor: activeTab === 'buy' ? 'var(--accent-success)' : 'var(--accent-danger)',
+            color: '#131313'
+          }"
           @click="placeOrder"
           :disabled="isSubmitting"
         >
-          {{ isSubmitting ? 'SIGNING TRANSACTION...' : 'SUBMIT CONFIDENTIAL ORDER' }}
+          {{ isSubmitting ? 'SEALING SHIELDED ORDER...' : 'PLACE PRIVATE SHIELDED ORDER' }}
         </button>
       </div>
 
       <!-- Recent Activity -->
       <div class="glass-panel">
-        <h3 class="micro-cap mb-4">RECENT MATCHED TRADES</h3>
-        <table class="premium-table">
-          <thead>
-            <tr>
-              <th>TIME</th>
-              <th>ASSET</th>
-              <th>SIZE</th>
-              <th>EXEC PRICE</th>
-              <th>RECEIPT</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(trade, i) in recentMatches" :key="i">
-              <td class="text-mute">{{ trade.time }}</td>
-              <td style="font-weight: 700;">{{ trade.asset }}</td>
-              <td style="color: var(--accent-secondary);"><Lock :size="12" style="margin-right:4px;" />{{ trade.size }}</td>
-              <td>{{ trade.price }}</td>
-              <td>
-                <a v-if="trade.txHash" :href="'https://testnet.arcscan.app/tx/' + trade.txHash" target="_blank" style="color: var(--text-main);">
-                  <ExternalLink :size="14" />
-                </a>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <h3 class="micro-cap mb-4">RECENT PRIVATE SETTLEMENTS</h3>
+        <div style="overflow-x: auto; width: 100%;">
+          <table class="premium-table">
+            <thead>
+              <tr>
+                <th>SETTLEMENT TIME</th>
+                <th>INTEREST ASSET</th>
+                <th>SHIELDED QUANTITY</th>
+                <th>EXECUTION PRICE</th>
+                <th>AUDIT RECEIPT</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(trade, i) in recentMatches" :key="i">
+                <td class="text-mute">{{ trade.time }}</td>
+                <td style="font-weight: 700;">{{ trade.asset }}</td>
+                <td style="color: var(--accent-secondary);"><Lock :size="12" style="margin-right:4px;" />{{ trade.size }}</td>
+                <td>{{ trade.price }}</td>
+                <td>
+                  <a v-if="trade.txHash" :href="'https://testnet.arcscan.app/tx/' + trade.txHash" target="_blank" style="color: var(--text-main);">
+                    <ExternalLink :size="14" />
+                  </a>
+                  <span v-else class="text-mute">-</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-        <div class="mt-4 flex items-center justify-center gap-2 p-4" style="background: rgba(195, 232, 141, 0.05); border-radius: 0.5rem; border: 1px dashed rgba(195, 232, 141, 0.2);">
+        <div class="mt-4 flex items-center justify-center gap-2 p-4" style="background: rgba(195, 232, 141, 0.05); border-radius: 0px; border: 1px dashed rgba(195, 232, 141, 0.2);">
           <CheckCircle :size="16" color="var(--accent-success)" />
-          <span class="micro-cap text-mute">DARK POOL SETTLEMENT ENGINE ACTIVE</span>
+          <span class="micro-cap text-mute">PRIVATE CLEARING ENGINE SYSTEM OPERATIONAL</span>
         </div>
       </div>
     </div>

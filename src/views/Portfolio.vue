@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useBondStore } from '../stores/bond'
 import { useUIStore } from '../stores/ui'
 import { useWeb3Store } from '../stores/web3'
@@ -117,6 +117,17 @@ const chartOptions = {
     mode: 'index',
   },
 }
+
+onMounted(async () => {
+  if (web3.isConnected && web3.address) {
+    const onChainInvestments = await web3.fetchOnChainInvestments(web3.address)
+    if (onChainInvestments && onChainInvestments.length > 0) {
+      onChainInvestments.forEach(item => {
+        store.recordInvestment(item.bondId, item.quantity, item.txHash)
+      })
+    }
+  }
+})
 </script>
 
 <template>
@@ -124,103 +135,111 @@ const chartOptions = {
     <div class="flex justify-between items-end" style="margin-bottom: 4rem;">
       <div>
         <div class="flex items-center gap-2 mb-2 micro-cap" style="color: var(--accent-primary);">
-          <WalletCards :size="14" /> UNIFIED ACCOUNT
+          <WalletCards :size="14" /> TREASURY SUMMARY
         </div>
-        <h1 class="display-xl text-gradient">PORTFOLIO</h1>
+        <h1 class="display-xl text-gradient">YOUR INTEREST DESK</h1>
       </div>
       <button class="btn-primary" @click="handleHarvest" :disabled="store.totalYield === 0">
-        <ArrowDownToLine :size="18" /> HARVEST YIELD ({{ store.fmt(store.totalYield) }})
+        <ArrowDownToLine :size="18" /> COLLECT EARNINGS ({{ store.fmt(store.totalYield) }})
       </button>
     </div>
 
-    <div v-if="store.portfolio.length === 0" class="flex flex-col items-center justify-center fade-up" style="padding: 8rem 0;">
-      <WalletCards :size="64" color="var(--text-muted)" style="margin-bottom: 1.5rem; opacity: 0.5;" />
-      <div class="micro-cap text-mute mb-4">NO ACTIVE POSITIONS</div>
-      <RouterLink to="/discover" class="btn-primary">DISCOVER BONDS</RouterLink>
+    <!-- Empty State Education -->
+    <div v-if="store.portfolio.length === 0" class="flex flex-col items-center justify-center fade-up text-center" style="padding: 8rem 0; max-width: 480px; margin: 0 auto;">
+      <WalletCards :size="64" color="var(--accent-gold)" style="margin-bottom: 1.5rem; opacity: 0.8;" class="pulse" />
+      <div class="micro-cap text-mute mb-2" style="font-weight: 700;">YOUR INTEREST DESK IS EMPTY</div>
+      <p class="text-mute mb-6" style="font-size: 0.88rem; line-height: 1.5;">
+        You don't have any active savings accounts yet. Explore our verified marketplace to deposit digital dollars and begin earning institutional interest.
+      </p>
+      <RouterLink to="/discover" class="btn-primary">EXPLORE SAVINGS POOLS</RouterLink>
     </div>
 
     <div v-else>
       <div class="fade-up delay-1" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 3rem;">
         <div class="glass-panel">
-          <div class="flex items-center gap-2 micro-cap mb-2"><WalletCards :size="14" /> TOTAL VALUE</div>
+          <div class="flex items-center gap-2 micro-cap mb-2"><WalletCards :size="14" /> TOTAL BALANCE</div>
           <div class="display-lg">{{ store.fmt(displayTotalValue) }}</div>
         </div>
         <div class="glass-panel">
-          <div class="flex items-center gap-2 micro-cap mb-2" style="color: var(--accent-success);"><TrendingUp :size="14" /> ACCRUED YIELD</div>
+          <div class="flex items-center gap-2 micro-cap mb-2" style="color: var(--accent-success);"><TrendingUp :size="14" /> EARNED INTEREST TO DATE</div>
           <div class="display-lg" style="color: var(--accent-success);">+{{ store.fmt(displayAccruedYield) }}</div>
         </div>
       </div>
 
       <!-- Yield Projection Chart -->
       <div class="glass-panel fade-up delay-2" style="margin-bottom: 3rem;">
-        <div class="micro-cap mb-4">12-MONTH YIELD PROJECTION</div>
+        <div class="micro-cap mb-4">12-MONTH SAVINGS FORECAST</div>
         <div style="height: 350px;">
           <Line :data="chartData" :options="chartOptions" />
         </div>
       </div>
 
-      <div class="micro-cap mb-4 fade-up delay-3">ACTIVE HOLDINGS</div>
-      <table class="premium-table fade-up delay-3">
-        <thead>
-          <tr>
-            <th>ASSET</th>
-            <th>NETWORK</th>
-            <th>QUANTITY</th>
-            <th>CURRENT VALUE</th>
-            <th>ACCRUED YIELD</th>
-            <th>RECEIPT (TX)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="p in store.portfolio" :key="p.id">
-            <td data-label="ASSET">
-              <div class="flex items-center gap-2" style="font-weight: 700;">
-                <Activity :size="16" color="var(--accent-secondary)" />
-                {{ store.getBond(p.bondId)?.token || p.bondId }}
-              </div>
-            </td>
-            <td data-label="NETWORK">
-              <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-main);">
-                {{ p.chain.toUpperCase() }}
-              </span>
-            </td>
-            <td data-label="QUANTITY" style="font-weight: 700;">{{ p.quantity }}</td>
-            <td data-label="CURRENT VALUE" style="font-weight: 700;">{{ store.fmt(p.currentValue) }}</td>
-            <td data-label="ACCRUED YIELD" style="color: var(--accent-success); font-weight: 700;">+{{ store.fmt(p.accruedYield) }}</td>
-            <td data-label="RECEIPT" class="micro-cap text-mute" style="text-align: right;">
-              <a v-if="p.lastTxHash" :href="'https://testnet.arcscan.app/tx/' + p.lastTxHash" target="_blank" class="flex items-center justify-end gap-1" style="color: var(--text-main); text-decoration: none;">
-                {{ truncate(p.lastTxHash) }} <ExternalLink :size="12" />
-              </a>
-              <span v-else>N/A</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="micro-cap mb-4 fade-up delay-3">ACTIVE INTEREST ACCOUNTS</div>
+      <div style="overflow-x: auto; width: 100%;">
+        <table class="premium-table fade-up delay-3">
+          <thead>
+            <tr>
+              <th>SAVINGS INSTRUMENT</th>
+              <th>SECURITY LAYER</th>
+              <th>DEPOSITED</th>
+              <th>CURRENT VALUE</th>
+              <th>EARNED INTEREST</th>
+              <th>RECEIPT / AUDIT</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in store.portfolio" :key="p.id">
+              <td data-label="SAVINGS INSTRUMENT">
+                <div class="flex items-center gap-2" style="font-weight: 700;">
+                  <Activity :size="16" color="var(--accent-secondary)" />
+                  {{ store.getBond(p.bondId)?.token || p.bondId }}
+                </div>
+              </td>
+              <td data-label="SECURITY LAYER">
+                <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-main);">
+                  {{ p.chain.toUpperCase() }} LINK
+                </span>
+              </td>
+              <td data-label="DEPOSITED" style="font-weight: 700;">{{ p.quantity }} USDC</td>
+              <td data-label="CURRENT VALUE" style="font-weight: 700;">{{ store.fmt(p.currentValue) }}</td>
+              <td data-label="EARNED INTEREST" style="color: var(--accent-success); font-weight: 700;">+{{ store.fmt(p.accruedYield) }}</td>
+              <td data-label="RECEIPT" class="micro-cap text-mute" style="text-align: right;">
+                <a v-if="p.lastTxHash" :href="'https://testnet.arcscan.app/tx/' + p.lastTxHash" target="_blank" class="flex items-center justify-end gap-1" style="color: var(--text-main); text-decoration: none;">
+                  {{ truncate(p.lastTxHash) }} <ExternalLink :size="12" />
+                </a>
+                <span v-else>N/A</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Smart Waterfall Section -->
       <div class="glass-panel fade-up delay-4" style="margin-top: 3rem;">
         <div class="flex items-center justify-between mb-4">
-          <div class="micro-cap" style="color: var(--accent-primary);">SMART CONTRACT AUTOMATION</div>
+          <div class="micro-cap" style="color: var(--accent-primary);">AUTOMATED INTEREST DISTRIBUTION</div>
           <div class="badge" style="background: rgba(195, 232, 141, 0.1); color: var(--accent-success);">ACTIVE</div>
         </div>
-        <h3 class="display-lg mb-2" style="font-size: 1.5rem;">PROGRAMMABLE YIELD WATERFALL</h3>
-        <p class="body-md text-mute mb-4">
-          Configure how accrued yield is automatically routed across networks when harvested. Powered by Circle Gateway and CCTP.
+        <h3 class="display-lg mb-2" style="font-size: 1.5rem;">SMART DISTRIBUTION WATERFALL</h3>
+        <p class="body-md text-mute mb-4" style="font-size: 0.88rem; line-height: 1.5;">
+          Select how your earned interest is automatically split and routed once collected. All transfers are securely processed in stable digital dollars (USDC) with no manual wire transfers required.
         </p>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
-          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1rem; border-radius: 0.5rem;">
-            <div class="micro-cap text-mute mb-2">TIER 1 (80%)</div>
-            <div class="body-md" style="font-weight: 700;">Corporate Treasury</div>
-            <div class="micro-cap mt-2" style="color: var(--accent-success);">→ Auto-Bridge to Ethereum</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem;">
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.25rem; border-radius: 0px;">
+            <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem;">RESERVES (80%)</div>
+            <div class="body-md" style="font-weight: 700; color: var(--text-main);">Main Corporate Treasury</div>
+            <div class="micro-cap mt-2" style="color: var(--accent-success); font-size: 0.65rem;">→ Safeguard in secure reserves</div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1rem; border-radius: 0.5rem;">
-            <div class="micro-cap text-mute mb-2">TIER 2 (10%)</div>
-            <div class="body-md" style="font-weight: 700;">Vendor Payment</div>
-            <div class="micro-cap mt-2" style="color: var(--accent-secondary);">→ Swap to EURC & Send</div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.25rem; border-radius: 0px;">
+            <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem;">PAYOUTS (10%)</div>
+            <div class="body-md" style="font-weight: 700; color: var(--text-main);">Global Contractor Payroll</div>
+            <div class="micro-cap mt-2" style="color: var(--accent-secondary); font-size: 0.65rem;">→ Swap to digital Euros & send</div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1rem; border-radius: 0.5rem;">
-            <div class="micro-cap text-mute mb-2">TIER 3 (10%)</div>
-            <div class="body-md" style="font-weight: 700;">Re-invest</div>
-            <div class="micro-cap mt-2" style="color: var(--accent-primary);">→ Auto-compound on Arc</div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.25rem; border-radius: 0px;">
+            <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem;">GROWTH (10%)</div>
+            <div class="body-md" style="font-weight: 700; color: var(--text-main);">Automatic Roll-over</div>
+            <div class="micro-cap mt-2" style="color: var(--accent-primary); font-size: 0.65rem;">→ Roll over into highest yield</div>
           </div>
         </div>
       </div>

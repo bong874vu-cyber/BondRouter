@@ -1,14 +1,17 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useBondStore } from './stores/bond'
 import { useWeb3Store } from './stores/web3'
 import Toast from './components/Toast.vue'
+import WalletModal from './components/WalletModal.vue'
+import TreasuryAssistant from './components/TreasuryAssistant.vue'
 import { useNumberCounter } from './composables/useCounter'
-import { Wallet, Activity, ArrowRightLeft, Layers } from 'lucide-vue-next'
+import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen } from 'lucide-vue-next'
 
 const store = useBondStore()
 const web3 = useWeb3Store()
+const isWalletModalOpen = ref(false)
 
 const displayBalance = useNumberCounter(computed(() => parseFloat(web3.balance) || 0))
 
@@ -34,13 +37,16 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
       </RouterLink>
       <nav class="app-nav">
         <RouterLink to="/discover">
-          <div class="flex items-center gap-2"><Activity :size="16" /> Discover</div>
+          <div class="flex items-center gap-2"><Activity :size="16" /> Discover Yield</div>
         </RouterLink>
         <RouterLink to="/portfolio">
-          <div class="flex items-center gap-2"><ArrowRightLeft :size="16" /> Portfolio</div>
+          <div class="flex items-center gap-2"><ArrowRightLeft :size="16" /> My Treasury</div>
         </RouterLink>
         <RouterLink to="/darkpool">
-          <div class="flex items-center gap-2"><Layers :size="16" /> Dark Pool</div>
+          <div class="flex items-center gap-2"><ShieldCheck :size="16" /> Shielded Trading</div>
+        </RouterLink>
+        <RouterLink to="/docs">
+          <div class="flex items-center gap-2"><BookOpen :size="16" /> Documentation</div>
         </RouterLink>
       </nav>
     </div>
@@ -48,12 +54,12 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
     <div class="flex items-center" style="gap: 1.5rem;">
       <div v-if="web3.error" class="micro-cap" style="color: var(--accent-danger);">{{ web3.error }}</div>
       <div v-if="web3.isConnected" style="text-align: right;">
-        <div class="micro-cap text-mute" style="color: var(--accent-success);">{{ web3.network.toUpperCase() }} NETWORK</div>
+        <div class="micro-cap text-mute" style="color: var(--accent-success); font-weight: 700;">SECURE HIGH-SPEED LINK ACTIVE</div>
         <div class="body-md" style="font-weight: 800;">{{ Number(displayBalance).toFixed(4) }} USDC</div>
       </div>
       
-      <button v-if="!web3.isConnected" class="btn-primary" @click="web3.connect()">
-        <Wallet :size="18" /> Connect Wallet
+      <button v-if="!web3.isConnected" class="btn-primary" @click="isWalletModalOpen = true">
+        <Wallet :size="18" /> Connect Account
       </button>
       <button v-else class="btn-glass" @click="web3.disconnect()">
         <Wallet :size="18" color="var(--accent-primary)" />
@@ -67,5 +73,7 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
   </main>
   
   <Toast />
+  <WalletModal :isOpen="isWalletModalOpen" @close="isWalletModalOpen = false" />
+  <TreasuryAssistant />
 </template>
 
