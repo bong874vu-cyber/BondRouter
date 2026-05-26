@@ -1,0 +1,37 @@
+{
+  "mode": "simulation",
+  "walletSetId": "wset_2abcc25c5fd8d223",
+  "wallets": [
+    {
+      "id": "wl_reserve_69539c85cbc25038",
+      "name": "Main Corporate Reserves",
+      "purpose": "RESERVES",
+      "address": "0x356e9A3f4ab4ccd32b8fec5bdcf7ebc97b55d85e",
+      "blockchain": "BASE-SEPOLIA",
+      "token": "USDC",
+      "balance": "450000.00",
+      "allocation": 80
+    },
+    {
+      "id": "wl_payroll_eb2e3ba688507b8b",
+      "name": "Global Contractor Payouts",
+      "purpose": "PAYOUTS",
+      "address": "0x794b2F7b1a7b39078000cb4271615057f6fc1c67",
+      "blockchain": "BASE-SEPOLIA",
+      "token": "EURC",
+      "balance": "23500.00",
+      "allocation": 10
+    },
+    {
+      "id": "wl_growth_a90e132cba7bd20e",
+      "name": "Active Compounding Growth",
+      "purpose": "GROWTH",
+      "address": "0x88Cc4ec7f2bcb712ec104e7a0f8c1242cc1b41f8",
+      "blockchain": "BASE-SEPOLIA",
+      "token": "USDC",
+      "balance": "12400.00",
+      "allocation": 10
+    }
+  ],
+  "distributions": []
+}

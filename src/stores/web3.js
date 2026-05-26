@@ -200,7 +200,7 @@ export const useWeb3Store = defineStore('web3', () => {
       const provider = new BrowserProvider(window.ethereum)
       const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
       const ABI = [
-        "event ConfidentialOrderSubmitted(address indexed trader, string asset, uint256 sizeHash)"
+        "event DarkPoolOrder(address indexed user, string asset, uint256 confidentialSizeHash)"
       ];
       
       const contract = new Contract(actualAddress, ABI, provider);
@@ -208,7 +208,7 @@ export const useWeb3Store = defineStore('web3', () => {
       const blockNumber = await provider.getBlockNumber();
       const startBlock = Math.max(0, blockNumber - 10000); 
       
-      const filter = contract.filters.ConfidentialOrderSubmitted();
+      const filter = contract.filters.DarkPoolOrder();
       const events = await contract.queryFilter(filter, startBlock, 'latest');
       
       return events.map(evt => {
@@ -235,7 +235,7 @@ export const useWeb3Store = defineStore('web3', () => {
       const provider = new BrowserProvider(window.ethereum)
       const actualAddress = '0x61b2821a6C686498d0671e793c9d60F7791431bE';
       const ABI = [
-        "event Invested(address indexed investor, string bondId, uint256 amount)"
+        "event Investment(address indexed user, string bondId, uint256 amount)"
       ];
       
       const contract = new Contract(actualAddress, ABI, provider);
@@ -243,7 +243,7 @@ export const useWeb3Store = defineStore('web3', () => {
       const blockNumber = await provider.getBlockNumber();
       const startBlock = Math.max(0, blockNumber - 10000); 
       
-      const filter = contract.filters.Invested(userAddr);
+      const filter = contract.filters.Investment(userAddr);
       const events = await contract.queryFilter(filter, startBlock, 'latest');
       
       return events.map(evt => ({
@@ -257,8 +257,60 @@ export const useWeb3Store = defineStore('web3', () => {
     }
   }
 
+  // --- CIRCLE DEVELOPER-CONTROLLED WALLETS INTEGRATION ---
+  const circleStatus = ref(null)
+  const circleWallets = ref([])
+  const circleDistributions = ref([])
+  const circleLoading = ref(false)
+
+  async function fetchCircleStatus() {
+    try {
+      const res = await fetch('/api/circle/status')
+      circleStatus.value = await res.json()
+    } catch (e) {
+      console.warn("Circle status check failed:", e.message)
+    }
+  }
+
+  async function fetchCircleWallets() {
+    circleLoading.value = true
+    try {
+      const res = await fetch('/api/circle/wallets')
+      const data = await res.json()
+      circleWallets.value = data.wallets || []
+      circleDistributions.value = data.distributions || []
+    } catch (e) {
+      console.warn("Circle wallets load failed:", e.message)
+    } finally {
+      circleLoading.value = false
+    }
+  }
+
+  async function distributeYieldToCircleWallets(amountStr) {
+    try {
+      const res = await fetch('/api/circle/distribute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amountStr })
+      })
+      const data = await res.json()
+      if (data.success) {
+        circleWallets.value = data.wallets || []
+        if (data.distribution) {
+          circleDistributions.value.unshift(data.distribution)
+        }
+        return data.distribution
+      }
+    } catch (e) {
+      console.warn("Programmatic Circle distribution failed:", e.message)
+    }
+    return null
+  }
+
   return { 
     isConnected, address, balance, network, error, connect, disconnect, 
-    sendInvestmentTx, harvestYieldCrossChain, fetchOnChainTrades, fetchOnChainInvestments 
+    sendInvestmentTx, harvestYieldCrossChain, fetchOnChainTrades, fetchOnChainInvestments,
+    circleStatus, circleWallets, circleDistributions, circleLoading,
+    fetchCircleStatus, fetchCircleWallets, distributeYieldToCircleWallets
   }
 })

@@ -4,7 +4,7 @@ import { useBondStore } from '../stores/bond'
 import { useUIStore } from '../stores/ui'
 import { useWeb3Store } from '../stores/web3'
 import { useNumberCounter } from '../composables/useCounter'
-import { ArrowDownToLine, WalletCards, TrendingUp, ExternalLink, Activity } from 'lucide-vue-next'
+import { ArrowDownToLine, WalletCards, TrendingUp, ExternalLink, Activity, Shield, Coins, Copy, ArrowUpRight, Lock } from 'lucide-vue-next'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,14 +42,23 @@ async function handleHarvest() {
     isHarvesting.value = true
     const amount = store.totalYield
     await new Promise(resolve => setTimeout(resolve, 1500)) // Safe visual execution delay
+    
+    // Clear frontend yields
     store.harvestYield()
-    web3.harvestYieldCrossChain(amount)
+    
+    // 1. Trigger CCTP Yield Aggregation & smart contract call
+    await web3.harvestYieldCrossChain(amount)
+    
+    // 2. Trigger programmatic distribution to Circle Custodial Wallets via API
+    await web3.distributeYieldToCircleWallets(amount)
+    
     isHarvesting.value = false
-    ui.addToast('YIELD HARVESTED ACROSS ALL NETWORKS VIA CCTP.', 'success')
+    ui.addToast('YIELD HARVESTED & WATERFALL DISTRIBUTED SECURELY.', 'success')
   }
 }
 
 const truncate = (str) => str ? `${str.slice(0,10)}...${str.slice(-8)}` : 'N/A'
+
 
 // Calculate projection data
 const chartData = computed(() => {
@@ -126,6 +135,11 @@ const chartOptions = {
 
 onMounted(async () => {
   isFetchingHoldings.value = true
+  
+  // Load Circle Developer Wallets and Status
+  await web3.fetchCircleStatus()
+  await web3.fetchCircleWallets()
+
   await new Promise(resolve => setTimeout(resolve, 800)) // Visual shimmers loading delay
   if (web3.isConnected && web3.address) {
     const onChainInvestments = await web3.fetchOnChainInvestments(web3.address)
@@ -286,28 +300,83 @@ onMounted(async () => {
         <div class="glass-panel fade-up delay-4" style="margin-top: 3rem;">
           <div class="flex items-center justify-between mb-4">
             <div class="micro-cap" style="color: var(--accent-primary);">AUTOMATED INTEREST DISTRIBUTION</div>
-            <div class="badge" style="background: rgba(195, 232, 141, 0.1); color: var(--accent-success);">ACTIVE</div>
+            <div v-if="web3.circleStatus" class="flex items-center gap-2">
+              <span class="badge" style="background: rgba(195, 232, 141, 0.1); color: var(--accent-success); font-weight: 700; letter-spacing: 0.05em; font-size: 0.65rem; display: flex; align-items: center; gap: 0.25rem;">
+                <span class="pulse-dot"></span> CIRCLE API: {{ web3.circleStatus.apiMode.toUpperCase() }}
+              </span>
+            </div>
+            <div v-else class="badge" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted);">ACTIVE</div>
           </div>
           <h3 class="display-lg mb-2" style="font-size: 1.5rem;">SMART DISTRIBUTION WATERFALL</h3>
           <p class="body-md text-mute mb-4" style="font-size: 0.88rem; line-height: 1.5;">
-            Select how your earned interest is automatically split and routed once collected. All transfers are securely processed in stable digital dollars (USDC) with no manual wire transfers required.
+            Select how your earned interest is automatically split and routed once collected. All transfers are securely processed in stable digital dollars (USDC/EURC) via Circle's Developer-Controlled Programmable Wallets.
           </p>
 
-          <div class="grid-three-columns-responsive">
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.25rem; border-radius: 0px;">
-              <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem;">RESERVES (80%)</div>
-              <div class="body-md" style="font-weight: 700; color: var(--text-main);">Main Corporate Treasury</div>
-              <div class="micro-cap mt-2" style="color: var(--accent-success); font-size: 0.65rem;">→ Safeguard in secure reserves</div>
+          <!-- Grid of developer wallets -->
+          <div class="grid-three-columns-responsive mb-6">
+            <div 
+              v-for="wallet in web3.circleWallets" 
+              :key="wallet.id" 
+              style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.5rem; border-radius: 0px; display: flex; flex-direction: column; justify-content: space-between; position: relative;"
+            >
+              <div style="position: absolute; top: 1.5rem; right: 1.5rem;">
+                <Lock :size="14" color="var(--accent-gold)" style="opacity: 0.6;" />
+              </div>
+              
+              <div>
+                <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem; display: flex; align-items: center; gap: 0.25rem;">
+                  <Shield :size="10" color="var(--accent-primary)" /> {{ wallet.purpose }} ({{ wallet.allocation }}%)
+                </div>
+                <div class="body-md" style="font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem;">{{ wallet.name }}</div>
+                <div class="micro-cap text-mute font-mono" style="font-size: 0.65rem; word-break: break-all; margin-bottom: 1rem;">
+                  {{ wallet.address }}
+                </div>
+              </div>
+              
+              <div style="border-top: 1px solid var(--border-light); padding-top: 0.75rem; margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <div class="micro-cap" style="font-size: 0.65rem; color: var(--text-muted);">CUSTODIAL BALANCE</div>
+                <div class="body-md" style="font-weight: 700; color: var(--accent-success);">{{ wallet.balance }} {{ wallet.token }}</div>
+              </div>
             </div>
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.25rem; border-radius: 0px;">
-              <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem;">PAYOUTS (10%)</div>
-              <div class="body-md" style="font-weight: 700; color: var(--text-main);">Global Contractor Payroll</div>
-              <div class="micro-cap mt-2" style="color: var(--accent-secondary); font-size: 0.65rem;">→ Swap to digital Euros & send</div>
+            
+            <!-- Fallback if loading or empty -->
+            <div v-if="web3.circleWallets.length === 0" v-for="i in 3" :key="'skeleton-' + i" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.5rem; border-radius: 0px;" class="skeleton">
+              <div class="skeleton-text short" style="height: 12px; margin-bottom: 12px;"></div>
+              <div class="skeleton-title" style="height: 24px; margin-bottom: 12px;"></div>
+              <div class="skeleton-text" style="height: 12px; width: 80%;"></div>
             </div>
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 1.25rem; border-radius: 0px;">
-              <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem;">GROWTH (10%)</div>
-              <div class="body-md" style="font-weight: 700; color: var(--text-main);">Automatic Roll-over</div>
-              <div class="micro-cap mt-2" style="color: var(--accent-primary); font-size: 0.65rem;">→ Roll over into highest yield</div>
+          </div>
+
+          <!-- Distribution logs / transaction history -->
+          <div v-if="web3.circleDistributions.length > 0" class="fade-in mt-6" style="border-top: 1px solid var(--border-light); padding-top: 2rem;">
+            <div class="micro-cap mb-3" style="color: var(--text-muted); font-size: 0.7rem; letter-spacing: 0.1em;">CIRCLE CUSTODIAL TRANSACTION LEDGER</div>
+            <div style="overflow-x: auto; width: 100%;">
+              <table class="premium-table" style="font-size: 0.8rem; margin: 0; min-width: 600px;">
+                <thead>
+                  <tr>
+                    <th>TIMESTAMP</th>
+                    <th>TOTAL COLLECTED</th>
+                    <th>SPLIT DETAILS</th>
+                    <th>SECURE ROUTING STATUS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="dist in web3.circleDistributions" :key="dist.id">
+                    <td style="font-family: monospace;">{{ new Date(dist.timestamp).toLocaleString() }}</td>
+                    <td style="font-weight: bold; color: var(--text-main);">+${{ dist.amount }} USDC</td>
+                    <td class="text-mute">
+                      <span style="color: var(--accent-success); font-weight: 600;">Reserves:</span> ${{ dist.splits.reserves }} | 
+                      <span style="color: var(--accent-secondary); font-weight: 600;">Payroll:</span> ${{ dist.splits.payroll }} EURC | 
+                      <span style="color: var(--accent-primary); font-weight: 600;">Growth:</span> ${{ dist.splits.growth }}
+                    </td>
+                    <td>
+                      <span class="badge" style="background: rgba(195, 232, 141, 0.05); color: var(--accent-success); font-size: 0.65rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem;">
+                        <Shield :size="10" /> SETTLED ON-CHAIN
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
