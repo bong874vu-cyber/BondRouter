@@ -72,7 +72,7 @@ onMounted(async () => {
       Private transaction desk for large orders. Your trade size and pricing are completely shielded from public view, preventing external parties from front-running your moves or causing price fluctuations. Safe, secure, and fully compliant.
     </p>
 
-    <div style="display: grid; grid-template-columns: 1fr 1.25fr; gap: 2rem; margin-top: 3rem;">
+    <div class="grid-two-columns-responsive">
       <!-- Order Entry -->
       <div class="glass-panel">
         <div class="flex justify-between items-center mb-4 border-b pb-4" style="border-color: rgba(255,255,255,0.05);">
@@ -141,11 +141,11 @@ onMounted(async () => {
             </thead>
             <tbody>
               <tr v-for="(trade, i) in recentMatches" :key="i">
-                <td class="text-mute">{{ trade.time }}</td>
-                <td style="font-weight: 700;">{{ trade.asset }}</td>
-                <td style="color: var(--accent-secondary);"><Lock :size="12" style="margin-right:4px;" />{{ trade.size }}</td>
-                <td>{{ trade.price }}</td>
-                <td>
+                <td data-label="SETTLEMENT TIME" class="text-mute">{{ trade.time }}</td>
+                <td data-label="INTEREST ASSET" style="font-weight: 700;">{{ trade.asset }}</td>
+                <td data-label="SHIELDED QUANTITY" style="color: var(--accent-secondary);"><Lock :size="12" style="margin-right:4px;" />{{ trade.size }}</td>
+                <td data-label="EXECUTION PRICE">{{ trade.price }}</td>
+                <td data-label="AUDIT RECEIPT">
                   <a v-if="trade.txHash" :href="'https://testnet.arcscan.app/tx/' + trade.txHash" target="_blank" style="color: var(--text-main);">
                     <ExternalLink :size="14" />
                   </a>

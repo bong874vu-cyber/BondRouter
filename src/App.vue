@@ -54,7 +54,7 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
     <div class="flex items-center" style="gap: 1.5rem;">
       <div v-if="web3.error" class="micro-cap" style="color: var(--accent-danger);">{{ web3.error }}</div>
       <div v-if="web3.isConnected" style="text-align: right;">
-        <div class="micro-cap text-mute" style="color: var(--accent-success); font-weight: 700;">SECURE HIGH-SPEED LINK ACTIVE</div>
+        <div class="micro-cap text-mute header-status-label" style="color: var(--accent-success); font-weight: 700;">SECURE HIGH-SPEED LINK ACTIVE</div>
         <div class="body-md" style="font-weight: 800;">{{ Number(displayBalance).toFixed(4) }} USDC</div>
       </div>
       
