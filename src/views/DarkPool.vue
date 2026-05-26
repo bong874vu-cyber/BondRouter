@@ -111,6 +111,7 @@ onMounted(async () => {
 
         <button 
           class="btn-primary w-full" 
+          :class="{ 'btn-loading': isSubmitting }"
           :style="{ 
             background: activeTab === 'buy' ? 'var(--accent-success)' : 'var(--accent-danger)',
             borderColor: activeTab === 'buy' ? 'var(--accent-success)' : 'var(--accent-danger)',
@@ -119,6 +120,7 @@ onMounted(async () => {
           @click="placeOrder"
           :disabled="isSubmitting"
         >
+          <span v-if="isSubmitting" class="spinner-inline mr-2"></span>
           {{ isSubmitting ? 'SEALING SHIELDED ORDER...' : 'PLACE PRIVATE SHIELDED ORDER' }}
         </button>
       </div>

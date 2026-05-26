@@ -101,11 +101,35 @@ async function confirmInvest() {
       </div>
     </div>
 
-    <div v-if="store.isLoading" class="flex items-center justify-center" style="height: 40vh;">
-      <div class="flex flex-col items-center gap-4">
-        <div class="spinner"></div>
-        <div class="micro-cap text-mute">SEARCHING ELITE INTERST POOLS...</div>
-      </div>
+    <!-- Table Skeleton Placeholder -->
+    <div v-if="store.isLoading" style="overflow-x: auto; width: 100%;">
+      <table class="premium-table">
+        <thead>
+          <tr>
+            <th>SAVINGS INSTRUMENT</th>
+            <th>PROVIDER</th>
+            <th>SECURITY LAYER</th>
+            <th>ANNUAL INTEREST</th>
+            <th>STABILITY RATING</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="i in 5" :key="i">
+            <td data-label="SAVINGS INSTRUMENT">
+              <div class="flex items-center gap-2">
+                <div class="skeleton" style="width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;"></div>
+                <div class="skeleton skeleton-text" style="width: 120px; height: 14px; margin: 0;"></div>
+              </div>
+            </td>
+            <td data-label="PROVIDER"><div class="skeleton skeleton-text short" style="height: 12px; margin: 0;"></div></td>
+            <td data-label="SECURITY LAYER"><div class="skeleton" style="width: 80px; height: 20px; border-radius: 0px;"></div></td>
+            <td data-label="ANNUAL INTEREST"><div class="skeleton skeleton-text" style="width: 50px; height: 14px; margin: 0;"></div></td>
+            <td data-label="STABILITY RATING"><div class="skeleton" style="width: 90px; height: 20px; border-radius: 0px;"></div></td>
+            <td data-label="ACTION" style="text-align: right;"><div class="skeleton" style="width: 80px; height: 32px; display: inline-block;"></div></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
     
     <div v-else style="overflow-x: auto; width: 100%;">
@@ -232,8 +256,15 @@ async function confirmInvest() {
             <span class="micro-cap" style="font-size: 0.6rem; color: #c3e88d;">Secure Bridge relocation is fully insured and managed automatically.</span>
           </div>
           
-          <button class="btn-primary mt-2" style="width: 100%;" @click="confirmInvest" :disabled="!investAmount || investAmount < 1">
-            START EARNING INTEREST (1-CLICK)
+          <button 
+            class="btn-primary mt-2" 
+            :class="{ 'btn-loading': txStatus === 'pending' || txStatus === 'simulating' }"
+            style="width: 100%;" 
+            @click="confirmInvest" 
+            :disabled="!investAmount || investAmount < 1 || txStatus === 'pending' || txStatus === 'simulating'"
+          >
+            <span v-if="txStatus === 'pending' || txStatus === 'simulating'" class="spinner-inline mr-2"></span>
+            {{ txStatus === 'pending' || txStatus === 'simulating' ? 'ROUTING TRANSFER...' : 'START EARNING INTEREST (1-CLICK)' }}
           </button>
         </div>
       </div>
