@@ -261,7 +261,7 @@ function handleCloseTour() {
   gap: 1rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .assistant-wrapper {
     bottom: calc(68px + 1.25rem + env(safe-area-inset-bottom)) !important;
     right: 1.25rem !important;

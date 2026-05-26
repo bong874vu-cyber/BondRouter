@@ -670,45 +670,26 @@ body {
 }
 
 /* Premium Responsiveness & Spacing Scale for high-end laptops & desktop screens */
-@media (max-width: 1320px) {
+@media (max-width: 1360px) {
   .app-header {
-    padding: 1rem 1.75rem;
+    padding: 1rem 1.5rem;
   }
   .app-header > .flex.items-center {
-    gap: 1.75rem !important;
+    gap: 1.5rem !important;
   }
   .app-nav {
-    gap: 1.5rem;
+    gap: 1.25rem;
   }
   .app-nav a {
     font-size: 0.78rem;
     letter-spacing: 0.05em;
   }
   .header-status-label {
-    font-size: 0.65rem;
-    white-space: nowrap;
+    display: none !important; /* Hide long green label immediately to prevent collision! */
   }
 }
 
-@media (max-width: 1160px) {
-  .app-header {
-    padding: 1rem 1.25rem;
-  }
-  .app-header > .flex.items-center {
-    gap: 1.25rem !important;
-  }
-  .app-nav {
-    gap: 1rem;
-  }
-  .app-nav a {
-    font-size: 0.75rem;
-  }
-  .header-status-label {
-    display: none !important; /* Hide long label on medium screen */
-  }
-}
-
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .app-nav {
     display: none !important;
   }
@@ -1055,7 +1036,7 @@ body {
   color: var(--accent-gold);
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .mobile-tab-bar {
     display: flex;
   }
@@ -1221,6 +1202,19 @@ body {
   background: rgba(191, 168, 133, 0.04);
   border: 1px dashed var(--accent-gold);
   border-radius: 0px;
+}
+
+/* Global Header Status Layout Lock (Prevents text wrapping at all screen sizes) */
+.header-status-container {
+  text-align: right;
+  white-space: nowrap !important;
+  flex-shrink: 0;
+}
+.header-status-container > div {
+  white-space: nowrap !important;
+}
+.header-status-label {
+  white-space: nowrap !important;
 }
 
 
