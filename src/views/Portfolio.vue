@@ -4,7 +4,9 @@ import { useBondStore } from '../stores/bond'
 import { useUIStore } from '../stores/ui'
 import { useWeb3Store } from '../stores/web3'
 import { useNumberCounter } from '../composables/useCounter'
-import { ArrowDownToLine, WalletCards, TrendingUp, ExternalLink, Activity, Shield, Coins, Copy, ArrowUpRight, Lock } from 'lucide-vue-next'
+import { ArrowDownToLine, WalletCards, TrendingUp, ExternalLink, Activity, Shield, Coins, Copy, ArrowUpRight, Lock, Clock, RefreshCw } from 'lucide-vue-next'
+import FxCalculator from '../components/FxCalculator.vue'
+import YieldTicker from '../components/YieldTicker.vue'
 import { keccak256, toUtf8Bytes } from 'ethers'
 import {
   Chart as ChartJS,
@@ -144,6 +146,72 @@ const chartOptions = {
   },
 }
 
+const tranchePositions = ref([])
+const unclaimedWaterfallYield = ref("0.00")
+const isClaimingWaterfall = ref(false)
+
+async function claimWaterfallEarnings() {
+  if (Number(unclaimedWaterfallYield.value) <= 0) return
+  isClaimingWaterfall.value = true
+  try {
+    const bondIds = [...new Set(tranchePositions.value.map(p => p.bondId))]
+    if (bondIds.length === 0) return
+    
+    await web3.claimAllWaterfallYieldTx(bondIds)
+    ui.addToast("WATERFALL YIELD CLAIMED SUCCESSFULLY!", "success")
+    
+    unclaimedWaterfallYield.value = "0.00"
+    await loadTranchePortfolio()
+  } catch (e) {
+    console.error("Claiming waterfall failed:", e)
+    ui.addToast("FAILED TO CLAIM WATERFALL YIELD.", "error")
+  } finally {
+    isClaimingWaterfall.value = false
+  }
+}
+
+async function loadTranchePortfolio() {
+  if (!web3.isConnected || !web3.address) return
+  
+  const totalWaterfallYield = await web3.fetchUnclaimedWaterfallYield()
+  unclaimedWaterfallYield.value = Number(totalWaterfallYield).toFixed(4)
+  
+  const userTrancheList = []
+  
+  if (store.marketBonds.length === 0) {
+    await store.fetchBonds()
+  }
+  
+  for (const bond of store.marketBonds) {
+    const data = await web3.fetchTrancheData(bond.id)
+    if (data) {
+      if (Number(data.senior.userDeposited) > 0) {
+        userTrancheList.push({
+          bondId: bond.id,
+          token: bond.token,
+          trancheIndex: 0,
+          trancheName: 'Senior',
+          deposited: data.senior.userDeposited,
+          targetAPY: data.senior.targetAPY,
+          accruedYield: data.senior.accruedYield
+        })
+      }
+      if (Number(data.junior.userDeposited) > 0) {
+        userTrancheList.push({
+          bondId: bond.id,
+          token: bond.token,
+          trancheIndex: 1,
+          trancheName: 'Junior',
+          deposited: data.junior.userDeposited,
+          targetAPY: data.junior.targetAPY,
+          accruedYield: data.junior.accruedYield
+        })
+      }
+    }
+  }
+  tranchePositions.value = userTrancheList
+}
+
 onMounted(async () => {
   isFetchingHoldings.value = true
   
@@ -159,6 +227,8 @@ onMounted(async () => {
         store.recordInvestment(item.bondId, item.quantity, item.txHash)
       })
     }
+    // Load tranche positions
+    await loadTranchePortfolio()
   }
   isFetchingHoldings.value = false
 })
@@ -259,12 +329,15 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Yield Projection Chart -->
-        <div class="glass-panel fade-up delay-2" style="margin-bottom: 3rem;">
-          <div class="micro-cap mb-4">12-MONTH SAVINGS FORECAST</div>
-          <div style="height: 350px;">
-            <Line :data="chartData" :options="chartOptions" />
+        <!-- Yield Projection Chart & Live Yield Stream -->
+        <div class="grid-two-columns-responsive mb-6 gap-6 fade-up delay-2" style="margin-bottom: 3rem; text-align: left;">
+          <div class="glass-panel" style="margin-bottom: 0;">
+            <div class="micro-cap mb-4">12-MONTH SAVINGS FORECAST</div>
+            <div style="height: 350px;">
+              <Line :data="chartData" :options="chartOptions" />
+            </div>
           </div>
+          <YieldTicker />
         </div>
 
         <div class="micro-cap mb-4 fade-up delay-3">ACTIVE INTEREST ACCOUNTS</div>
@@ -312,6 +385,92 @@ onMounted(async () => {
           </table>
         </div>
         
+        <!-- On-Chain Structured Tranches -->
+        <div class="glass-panel fade-up delay-4" style="margin-top: 3rem; padding: 2rem;">
+          <div class="flex-responsive-header mb-4">
+            <div>
+              <div class="micro-cap" style="color: var(--accent-gold);">ON-CHAIN RISK TRANCHES</div>
+              <h3 class="display-lg" style="font-size: 1.5rem; margin-top: 0.25rem;">STRUCTURED TRANCHE HOLDINGS</h3>
+            </div>
+            <!-- Claim button -->
+            <div class="flex items-center gap-4">
+              <div class="text-right">
+                <span class="micro-cap block text-mute">UNCLAIMED WATERFALL REWARDS</span>
+                <span class="body-md font-bold" style="color: var(--accent-success);">+{{ unclaimedWaterfallYield }} USDC</span>
+              </div>
+              <button 
+                class="btn-primary" 
+                :class="{ 'btn-loading': isClaimingWaterfall }"
+                @click="claimWaterfallEarnings"
+                :disabled="Number(unclaimedWaterfallYield) <= 0 || isClaimingWaterfall"
+                style="background: var(--accent-success); border-color: var(--accent-success); color: #131313; border-radius: 0px;"
+              >
+                <span v-if="isClaimingWaterfall" class="spinner-inline mr-2"></span>
+                CLAIM YIELD
+              </button>
+            </div>
+          </div>
+
+          <p class="body-md text-mute mb-4" style="font-size: 0.88rem; line-height: 1.5;">
+            Tranche-based deposits route capital to either Senior (priority payout, junior-cushioned protection) or Junior (surplus-capturing leveraged yield) vaults on-chain.
+          </p>
+
+          <div style="overflow-x: auto; width: 100%;">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>SAVINGS INSTRUMENT</th>
+                  <th>RISK CATEGORY</th>
+                  <th>DEPOSITED SIZE</th>
+                  <th>TARGET APY</th>
+                  <th>ACCUMULATED POOL YIELD</th>
+                  <th>ON-CHAIN SECURITY</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="tranchePositions.length === 0">
+                  <td colspan="6" class="text-center text-mute py-4">
+                    No active structured tranche deposits. Visit the <router-link to="/discover" style="color: var(--accent-primary);">Savings Desk</router-link> to invest in risk tranches.
+                  </td>
+                </tr>
+                <tr v-for="t in tranchePositions" :key="t.bondId + '-' + t.trancheIndex">
+                  <td data-label="SAVINGS INSTRUMENT">
+                    <div class="flex items-center gap-2" style="font-weight: 700;">
+                      <Activity :size="16" color="var(--accent-secondary)" />
+                      {{ t.token }}
+                    </div>
+                  </td>
+                  <td data-label="RISK CATEGORY">
+                    <span 
+                      class="badge" 
+                      :style="{ 
+                        background: t.trancheIndex === 0 ? 'rgba(130, 255, 170, 0.1)' : 'rgba(130, 170, 255, 0.1)',
+                        color: t.trancheIndex === 0 ? 'var(--accent-success)' : 'var(--accent-secondary)'
+                      }"
+                    >
+                      {{ t.trancheName.toUpperCase() }}
+                    </span>
+                  </td>
+                  <td data-label="DEPOSITED SIZE" style="font-weight: 700;">
+                    {{ t.deposited }} USDC
+                  </td>
+                  <td data-label="TARGET APY" style="font-weight: 700;" :style="{ color: t.trancheIndex === 0 ? 'var(--accent-success)' : 'var(--accent-secondary)' }">
+                    {{ t.targetAPY.toFixed(2) }}% APY
+                  </td>
+                  <td data-label="ACCUMULATED POOL YIELD" style="color: var(--accent-success); font-weight: 700;">
+                    +{{ Number(t.accruedYield).toFixed(4) }} USDC
+                  </td>
+                  <td data-label="ON-CHAIN SECURITY">
+                    <span class="badge" style="background: rgba(255,255,255,0.03); color: var(--accent-gold);">
+                      Verified ZK Bond
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Smart Waterfall Section -->
         <div class="glass-panel fade-up delay-4" style="margin-top: 3rem;">
           <div class="flex items-center justify-between mb-4">
@@ -345,7 +504,13 @@ onMounted(async () => {
                 </div>
                 <div class="body-md" style="font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem;">{{ wallet.name }}</div>
                 <div class="micro-cap text-mute font-mono" style="font-size: 0.65rem; word-break: break-all; margin-bottom: 1rem;">
-                  {{ wallet.address }}
+                  <a 
+                    :href="'https://sepolia.basescan.org/address/' + wallet.address" 
+                    target="_blank" 
+                    style="color: var(--accent-secondary); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;"
+                  >
+                    {{ wallet.address }} <ExternalLink :size="10" />
+                  </a>
                 </div>
               </div>
               
@@ -360,6 +525,89 @@ onMounted(async () => {
               <div class="skeleton-text short" style="height: 12px; margin-bottom: 12px;"></div>
               <div class="skeleton-title" style="height: 24px; margin-bottom: 12px;"></div>
               <div class="skeleton-text" style="height: 12px; width: 80%;"></div>
+            </div>
+          </div>
+
+          <!-- StableFX Converter section -->
+          <div class="grid-two-columns-responsive mb-6 gap-6" style="margin-top: 2rem; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 2rem;">
+            <div style="text-align: left; display: flex; flex-direction: column; justify-content: center;">
+              <span class="micro-cap font-bold" style="color: var(--accent-gold); letter-spacing: 0.1em;">CIRCLE STABLEFX LIQUIDITY SWAPS</span>
+              <h4 class="display-md mb-2" style="font-size: 1.35rem; margin-top: 0.5rem; color: var(--text-main); font-weight: 800;">CROSS-BORDER PAYROLL SETTLEMENT</h4>
+              <p class="body-md text-mute" style="font-size: 0.85rem; line-height: 1.6; color: var(--text-muted);">
+                BondRouter integrates with Circle's live StableFX liquidity engine to allow institutional treasuries to execute real-time, low-slippage conversions between USDC and EURC.
+              </p>
+              <p class="body-md text-mute mt-3" style="font-size: 0.85rem; line-height: 1.6; color: var(--text-muted);">
+                European contractors can be paid directly in EURC, minimizing foreign exchange exposure and settling transfers in seconds over stable blockchain rails.
+              </p>
+            </div>
+            <div>
+              <FxCalculator />
+            </div>
+          </div>
+
+          <!-- Live CCTP Cross-Chain Attestation Tracking & Recovery -->
+          <div v-if="web3.cctp.pendingBridges.value.length > 0" class="fade-in mt-6 mb-6" style="background: rgba(212, 175, 55, 0.02); border: 1px solid var(--border-light); padding: 1.5rem; border-radius: 0px; text-align: left;">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <RefreshCw :size="16" color="var(--accent-gold)" class="spinner-inline" />
+                <span class="micro-cap font-bold" style="letter-spacing: 0.1em; color: var(--accent-gold);">LIVE CCTP ATTESTATION TRACKER</span>
+              </div>
+              <button class="btn-glass" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;" @click="web3.cctp.clearCompleted()">
+                CLEAR SETTLED TRANSFERS
+              </button>
+            </div>
+
+            <div class="flex flex-col gap-4">
+              <div v-for="bridge in web3.cctp.pendingBridges.value" :key="bridge.txHash" style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 0px;">
+                <div class="flex justify-between items-center mb-3">
+                  <div>
+                    <div class="body-md font-bold" style="color: var(--text-main);">
+                      Bridge {{ bridge.amount }} USDC
+                    </div>
+                    <div class="micro-cap text-mute" style="font-size: 0.65rem; font-family: monospace;">
+                      Source TX: <a :href="'https://sepolia.etherscan.io/tx/' + bridge.txHash" target="_blank" style="color: var(--accent-secondary); text-decoration: none;">{{ bridge.txHash.slice(0, 10) }}...{{ bridge.txHash.slice(-8) }}</a>
+                    </div>
+                  </div>
+                  <div>
+                    <span v-if="bridge.status === 'burning'" class="badge" style="background: rgba(255,165,0,0.1); color: orange;">CONFIRMING BURN</span>
+                    <span v-else-if="bridge.status === 'attestation_polling'" class="badge" style="background: rgba(0,191,255,0.1); color: deepskyblue;">POLLING SIGNATURE</span>
+                    <span v-else-if="bridge.status === 'attestation_ready'" class="badge" style="background: rgba(212,175,55,0.1); color: var(--accent-gold);">SIGNATURE ACQUIRED</span>
+                    <span v-else-if="bridge.status === 'minting'" class="badge" style="background: rgba(138,43,226,0.1); color: blueviolet;">MINTING ON ARC</span>
+                    <span v-else-if="bridge.status === 'completed'" class="badge" style="background: rgba(50,205,50,0.1); color: var(--accent-success);">COMPLETED</span>
+                  </div>
+                </div>
+
+                <!-- Custom Progress Bar -->
+                <div style="background: rgba(255,255,255,0.05); height: 6px; width: 100%; border-radius: 3px; overflow: hidden; margin-bottom: 0.75rem; position: relative;">
+                  <div 
+                    style="height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-success)); transition: width 0.5s ease;"
+                    :style="{ width: bridge.progress + '%' }"
+                  ></div>
+                </div>
+
+                <div class="flex justify-between items-center">
+                  <div class="flex items-center gap-1.5 micro-cap text-mute" style="font-size: 0.65rem;">
+                    <Clock :size="10" />
+                    <span v-if="bridge.status === 'burning'">Awaiting source ledger finality...</span>
+                    <span v-else-if="bridge.status === 'attestation_polling'">Circle consensus pending (ETA: {{ bridge.eta }}s)</span>
+                    <span v-else-if="bridge.status === 'attestation_ready'">Proof ready to submit.</span>
+                    <span v-else-if="bridge.status === 'minting'">Submitting mint instruction...</span>
+                    <span v-else-if="bridge.status === 'completed'">Deposit credited successfully on Arc chain.</span>
+                  </div>
+
+                  <button 
+                    v-if="bridge.status === 'attestation_ready'" 
+                    class="btn-primary" 
+                    style="font-size: 0.7rem; padding: 0.35rem 0.75rem;"
+                    @click="web3.cctp.claimBridge(bridge)"
+                  >
+                    CLAIM FUNDS ON ARC
+                  </button>
+                  <span v-else-if="bridge.status === 'minting'" class="micro-cap" style="color: var(--accent-secondary); font-weight: bold;">
+                    COMMITTING...
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 

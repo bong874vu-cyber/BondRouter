@@ -1,9 +1,15 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive, onMounted, nextTick, watch } from 'vue'
 import { useBondStore } from '../stores/bond'
 import { useWeb3Store } from '../stores/web3'
 import { useUIStore } from '../stores/ui'
-import { Server, Activity, ShieldCheck, CheckCircle2, ChevronRight, X, Info, Shield, HelpCircle } from 'lucide-vue-next'
+import { 
+  Server, Activity, ShieldCheck, ChevronRight, X, Info, Shield, 
+  HelpCircle, Cpu, TrendingUp, DollarSign, ListCollapse, ArrowDownWideNarrow, Play 
+} from 'lucide-vue-next'
+import { Chart, registerables } from 'chart.js'
+
+Chart.register(...registerables)
 
 const store = useBondStore()
 const web3 = useWeb3Store()
@@ -11,19 +17,155 @@ const ui = useUIStore()
 
 const selectedBond = ref(null)
 const investAmount = ref('')
-const txStatus = ref('') // '', 'pending', 'simulating', 'success', 'error'
-const simulationStep = ref(0)
+const selectedTranche = ref(0) // 0 = Senior, 1 = Junior
+const txStatus = ref('') // '', 'pending', 'success', 'error'
 const txHash = ref('')
 const txErrorMsg = ref('')
-const showInfoBanner = ref(true)
 
-const SIMULATION_STEPS = [
-  "SECURE LINK: INITIATING SAFE DIGITAL DOLLAR ROUTING...",
-  "AUTO-ROUTER: BRIDGING FUNDS VIA SHIELDED HIGHWAY (SPONSORED)...",
-  "STABILITY CHECKER: SECURING COMPLIANCE WITH CIRCLE STANDARD...",
-  "DESK MANAGER: DEPOSITING DIGITAL DOLLARS INTO INTEREST VAULT...",
-  "GROWTH ENGINE: ENABLING AUTOMATIC COMPOUNDING..."
-]
+// Simulator States
+const simulatedYield = ref('1000')
+const simulatorChartRef = ref(null)
+let chartInstance = null
+
+// On-chain tranche details
+const trancheData = ref({
+  senior: { totalDeposited: '0', targetAPY: 5.0, accruedYield: '0', userDeposited: '0' },
+  junior: { totalDeposited: '0', targetAPY: 15.0, accruedYield: '0', userDeposited: '0' }
+})
+const isLoadingTranche = ref(false)
+
+// Admin controls
+const adminYieldAmount = ref('')
+const isAdminProcessing = ref(false)
+
+// Payout logs
+const payoutLogs = ref([])
+
+// Watch modal state to query on-chain variables
+watch(selectedBond, async (newVal) => {
+  if (newVal) {
+    await loadTrancheInfo(newVal.id)
+    nextTick(() => {
+      runWaterfallSimulation()
+    })
+  } else {
+    if (chartInstance) {
+      chartInstance.destroy()
+      chartInstance = null
+    }
+  }
+})
+
+// Query on-chain tranche stats and logs
+async function loadTrancheInfo(bondId) {
+  isLoadingTranche.value = true
+  try {
+    const data = await web3.fetchTrancheData(bondId)
+    if (data) {
+      trancheData.value = data
+    }
+    // Load historical on-chain payout logs
+    await queryPayoutLogs(bondId)
+  } catch (e) {
+    console.error("Failed to load tranche info:", e)
+  } finally {
+    isLoadingTranche.value = false
+  }
+}
+
+// Query past yield distributions
+async function queryPayoutLogs(bondId) {
+  try {
+    if (!window.ethereum) return
+    const provider = new web3.BrowserProvider(window.ethereum)
+    const ABI = [
+      "event WaterfallYieldDistributed(string bondId, uint256 seniorYield, uint256 juniorYield)"
+    ]
+    const contract = new web3.Contract(web3.contractAddress.BondRouter, ABI, provider)
+    
+    const blockNumber = await provider.getBlockNumber()
+    const startBlock = Math.max(0, blockNumber - 10000)
+    const filter = contract.filters.WaterfallYieldDistributed(bondId)
+    const events = await contract.queryFilter(filter, startBlock, 'latest')
+    
+    payoutLogs.value = events.map(evt => ({
+      txHash: evt.transactionHash,
+      seniorPaid: web3.formatEther(evt.args[1]),
+      juniorPaid: web3.formatEther(evt.args[2])
+    }))
+  } catch (e) {
+    console.warn("Payout logs fetch failed:", e.message)
+  }
+}
+
+// Calculate simulation priority divisions and update Chart.js
+function runWaterfallSimulation() {
+  if (!selectedBond.value) return
+  
+  const totalSimYield = Number(simulatedYield.value) || 0
+  const seniorDeposited = Number(trancheData.value.senior.totalDeposited) || 10000 // default dummy if pool empty
+  const seniorAPY = trancheData.value.senior.targetAPY / 100 // e.g. 0.05
+  
+  // Senior Priority Return target
+  const seniorPriority = seniorDeposited * seniorAPY
+  
+  let seniorShare = 0
+  let juniorShare = 0
+  
+  if (totalSimYield <= seniorPriority) {
+    seniorShare = totalSimYield
+    juniorShare = 0
+  } else {
+    seniorShare = seniorPriority
+    juniorShare = totalSimYield - seniorPriority
+  }
+
+  // Render/Update Chart
+  if (simulatorChartRef.value) {
+    const ctx = simulatorChartRef.value.getContext('2d')
+    if (chartInstance) {
+      chartInstance.destroy()
+    }
+    chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Total Pool Yield', 'Senior Share (Priority)', 'Junior Share (Residual)'],
+        datasets: [{
+          data: [totalSimYield, seniorShare, juniorShare],
+          backgroundColor: [
+            'rgba(255, 184, 108, 0.25)', // Gold
+            'rgba(130, 255, 170, 0.25)', // Green
+            'rgba(130, 170, 255, 0.25)'  // Blue
+          ],
+          borderColor: [
+            'var(--accent-gold)',
+            'var(--accent-success)',
+            'var(--accent-secondary)'
+          ],
+          borderWidth: 1.5,
+          borderRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: { color: '#a0a0a0', font: { family: 'monospace' } }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#a0a0a0', font: { family: 'monospace' } }
+          }
+        }
+      }
+    })
+  }
+}
 
 function openInvestModal(bond) {
   selectedBond.value = bond
@@ -31,60 +173,73 @@ function openInvestModal(bond) {
   txStatus.value = ''
   txHash.value = ''
   txErrorMsg.value = ''
-  simulationStep.value = 0
+  selectedTranche.value = 0
 }
 
 function closeModal() {
-  if (txStatus.value !== 'pending' && txStatus.value !== 'simulating') {
+  if (txStatus.value !== 'pending') {
     selectedBond.value = null
   }
 }
 
-async function runSimulation() {
-  txStatus.value = 'simulating'
-  for (let i = 0; i < SIMULATION_STEPS.length; i++) {
-    simulationStep.value = i
-    await new Promise(r => setTimeout(r, 900)) // faster simulation
-  }
-}
-
+// Deposit USDC into selected tranche
 async function confirmInvest() {
   if (!web3.isConnected) {
     ui.addToast('PLEASE CONNECT YOUR SECURE ACCOUNT FIRST.', 'error')
     return
   }
-  
   if (!web3.isKycVerified) {
-    ui.addToast('KYC COMPLIANCE VERIFICATION REQUIRED. PLEASE VISIT SETTINGS.', 'error')
+    ui.addToast('KYC COMPLIANCE VERIFICATION REQUIRED. VISIT SETTINGS.', 'error')
     return
   }
   
-  const qty = parseInt(investAmount.value)
-  if (qty > 0) {
-    try {
-      txStatus.value = 'pending'
-      const hash = await web3.sendInvestmentTx('INVEST', selectedBond.value.id, qty)
-      
-      // After wallet confirms, simulate CCTP bridge delay visually
-      await runSimulation()
-      
-      txHash.value = hash
-      txStatus.value = 'success'
-      store.recordInvestment(selectedBond.value.id, qty, hash)
-      ui.addToast('DEPOSIT SUCCESSFULLY RECORDED', 'success')
-    } catch (e) {
-      txStatus.value = 'error'
-      txErrorMsg.value = e.message.substring(0, 100) || 'TRANSACTION WAS DECLINED BY YOUR WALLET OR FAILED.'
-      ui.addToast('DEPOSIT FAILED', 'error')
-    }
+  const amt = Number(investAmount.value)
+  if (amt <= 0) return
+
+  try {
+    txStatus.value = 'pending'
+    const hash = await web3.investInTrancheTx(selectedBond.value.id, selectedTranche.value, amt)
+    txHash.value = hash
+    txStatus.value = 'success'
+    
+    // Save standard position locally
+    store.recordInvestment(selectedBond.value.id, amt, hash)
+    ui.addToast('DEPOSIT REGISTERED IN TRANCHE.', 'success')
+    
+    await loadTrancheInfo(selectedBond.value.id)
+  } catch (e) {
+    txStatus.value = 'error'
+    txErrorMsg.value = e.message || 'TRANSACTION FAILED.'
+    ui.addToast('DEPOSIT FAILED', 'error')
   }
 }
+
+// Admin: triggers on-chain yield distribution
+async function adminDistributeYield() {
+  if (!adminYieldAmount.value || Number(adminYieldAmount.value) <= 0) return
+  isAdminProcessing.value = true
+  try {
+    const hash = await web3.distributePoolYieldTx(selectedBond.value.id, adminYieldAmount.value)
+    ui.addToast(`YIELD DISTRIBUTED ON-CHAIN: ${adminYieldAmount.value} USDC`, 'success')
+    adminYieldAmount.value = ''
+    await loadTrancheInfo(selectedBond.value.id)
+  } catch (e) {
+    console.error("Distribution failed:", e)
+    ui.addToast("YIELD DISTRIBUTION REJECTED (OWNER ONLY).", "error")
+  } finally {
+    isAdminProcessing.value = false
+  }
+}
+
+onMounted(async () => {
+  await store.fetchBonds()
+})
 </script>
 
 <template>
   <div class="page-container fade-in">
-    <!-- Compliance alert banner -->
-    <div v-if="web3.isConnected && !web3.isKycVerified" class="glass-panel mb-4" style="padding: 1rem 1.5rem; border: 1px solid var(--accent-danger); background: rgba(255, 107, 107, 0.05); margin-bottom: 2rem; display: flex; align-items: center; gap: 0.75rem; border-radius: 0px;">
+    <!-- KYC Warning -->
+    <div v-if="web3.isConnected && !web3.isKycVerified" class="glass-panel mb-4" style="padding: 1rem 1.5rem; border: 1px solid var(--accent-danger); background: rgba(255, 107, 107, 0.05); margin-bottom: 2rem; display: flex; align-items: center; gap: 0.75rem;">
       <Info :size="18" color="var(--accent-danger)" style="flex-shrink:0;" />
       <div style="flex-grow: 1;">
         <span class="micro-cap" style="color: var(--accent-danger); font-weight: bold; display: block; margin-bottom: 0.2rem;">KYC VERIFICATION MANDATORY</span>
@@ -93,30 +248,13 @@ async function confirmInvest() {
         </p>
       </div>
     </div>
+
     <div class="flex items-center gap-2 mb-2 micro-cap" style="color: var(--accent-primary);">
       <Server :size="14" /> SECURE SAVINGS DESK
     </div>
-    <h1 class="display-xl text-gradient mb-4" style="margin-bottom: 2rem;">DISCOVER HIGHER INTEREST</h1>
+    <h1 class="display-xl text-gradient mb-4" style="margin-bottom: 2rem;">DISCOVER TRANCHE PRODUCTS</h1>
 
-    <!-- Contextual Inline Helper / Safety Banner -->
-    <div v-if="showInfoBanner" class="glass-panel fade-up mb-4" style="padding: 1.75rem; border-left: 3px solid var(--accent-gold); margin-bottom: 2.5rem; position: relative;">
-      <button @click="showInfoBanner = false" class="modal-close-btn" style="position: absolute; top: 1rem; right: 1rem; width: 24px; height: 24px;">
-        <X :size="10" />
-      </button>
-      <div class="flex items-start gap-3">
-        <Shield :size="20" color="var(--accent-gold)" style="flex-shrink: 0; margin-top: 2px;" />
-        <div>
-          <h4 style="font-family: var(--font-serif); font-size: 1.15rem; color: var(--accent-gold); margin-bottom: 0.35rem;">Why is depositing here safe and friction-free?</h4>
-          <p class="text-mute" style="font-size: 0.85rem; line-height: 1.5; max-width: 90%;">
-            Our automated link system aggregates interest rates from verified, multi-million dollar institutional assets. 
-            When you deposit, our safe relayer routes your stable dollars natively, pays the network fees, and connects you to active yields with no manual bridging. 
-            <strong>Every balance is held in fully collateralized USDC (digital dollars).</strong>
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Table Skeleton Placeholder -->
+    <!-- Table of pools -->
     <div v-if="store.isLoading" style="overflow-x: auto; width: 100%;">
       <table class="premium-table">
         <thead>
@@ -138,9 +276,9 @@ async function confirmInvest() {
               </div>
             </td>
             <td data-label="PROVIDER"><div class="skeleton skeleton-text short" style="height: 12px; margin: 0;"></div></td>
-            <td data-label="SECURITY LAYER"><div class="skeleton" style="width: 80px; height: 20px; border-radius: 0px;"></div></td>
+            <td data-label="SECURITY LAYER"><div class="skeleton" style="width: 80px; height: 20px;"></div></td>
             <td data-label="ANNUAL INTEREST"><div class="skeleton skeleton-text" style="width: 50px; height: 14px; margin: 0;"></div></td>
-            <td data-label="STABILITY RATING"><div class="skeleton" style="width: 90px; height: 20px; border-radius: 0px;"></div></td>
+            <td data-label="STABILITY RATING"><div class="skeleton" style="width: 90px; height: 20px;"></div></td>
             <td data-label="ACTION" style="text-align: right;"><div class="skeleton" style="width: 80px; height: 32px; display: inline-block;"></div></td>
           </tr>
         </tbody>
@@ -182,7 +320,7 @@ async function confirmInvest() {
             </td>
             <td data-label="ACTION" style="text-align: right;">
               <button class="btn-glass" style="padding: 0.5rem 1rem; font-size: 0.75rem;" @click="openInvestModal(b)">
-                DEPOSIT <ChevronRight :size="14" />
+                VIEW TRANCHES <ChevronRight :size="14" />
               </button>
             </td>
           </tr>
@@ -190,99 +328,208 @@ async function confirmInvest() {
       </table>
     </div>
 
-    <!-- Invest Modal -->
+    <!-- TRANCHE VAULT MODAL -->
     <div v-if="selectedBond" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content fade-up" style="animation-duration: 0.4s; max-width: 560px; width: 92%; margin: 16px;">
-        <div class="flex justify-between items-start">
+      <div class="modal-content fade-up" style="max-width: 900px; width: 95%; margin: 16px; height: 90vh; display: flex; flex-direction: column; justify-content: space-between;">
+        
+        <!-- Modal Header -->
+        <div class="flex justify-between items-start border-b pb-4" style="border-color: rgba(255,255,255,0.05);">
           <div>
-            <div class="micro-cap mb-2" style="color: var(--accent-primary);">SECURE DEPOSIT PANEL</div>
-            <h2 class="display-lg" style="font-size: 2rem;">{{ selectedBond.token }}</h2>
+            <div class="micro-cap mb-1" style="color: var(--accent-primary);">STRUCTURED YIELD DEPOSIT</div>
+            <h2 class="display-lg" style="font-size: 1.8rem; margin-bottom: 0.2rem;">{{ selectedBond.token }} — TRANCHE PORTFOLIO</h2>
+            <div class="text-xs text-mute font-mono">Pool: {{ selectedBond.id }}</div>
           </div>
-          <button v-if="txStatus !== 'pending' && txStatus !== 'simulating'" class="modal-close-btn" @click="closeModal">
+          <button v-if="txStatus !== 'pending'" class="modal-close-btn" @click="closeModal">
             <X :size="18" />
           </button>
         </div>
-        
-        <div v-if="txStatus === 'success'" class="fade-in">
-          <div class="flex flex-col items-center text-center py-4">
-            <CheckCircle2 :size="64" color="var(--accent-success)" style="margin-bottom: 1rem;" />
-            <p class="body-md" style="color: var(--accent-success); font-weight: 800;">DEPOSIT SUCCESSFULLY COMPLETED</p>
-            <p class="body-md text-mute mt-2">Your stable dollars are now active and generating compound interest.</p>
-            
-            <p class="micro-cap mt-4 mb-2">RECEIPT / AUDIT NUMBER</p>
-            <p class="body-md" style="word-break: break-all; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.85rem;">
-              <a :href="'https://testnet.arcscan.app/tx/' + txHash" target="_blank" style="color: var(--accent-secondary); text-decoration: none;">{{ txHash }}</a>
-            </p>
-            <button class="btn-primary mt-4" style="width: 100%;" @click="closeModal">RETURN TO SAVINGS DESK</button>
-          </div>
-        </div>
-        
-        <div v-else-if="txStatus === 'simulating'" class="fade-in">
-          <div class="terminal-box">
-            <div v-for="(step, i) in SIMULATION_STEPS" :key="i" class="micro-cap" 
-                 :style="{ opacity: i <= simulationStep ? 1 : 0.3, color: i === simulationStep ? 'var(--accent-success)' : 'var(--text-muted)', fontSize: '0.75rem' }">
-              > {{ step }}
-              <span v-if="i === simulationStep" class="cursor">_</span>
-            </div>
-          </div>
-        </div>
 
-        <div v-else-if="txStatus === 'pending'" class="fade-in">
-          <div class="flex flex-col items-center justify-center py-8 text-center">
-            <div class="spinner mb-4"></div>
-            <p class="body-md" style="font-weight: 800;">CONNECTING TO ACCOUNT SECURELY...</p>
-            <p class="micro-cap text-mute mt-2">PLEASE CONFIRM THE ACCOUNT LINK ACTION IN YOUR SECURE WALLET TO START AUTOMATED TRANSFER ROUTING.</p>
-          </div>
-        </div>
-        
-        <div v-else class="fade-in">
-          <div v-if="txStatus === 'error'" style="background: rgba(240, 113, 120, 0.1); border: 1px solid var(--accent-danger); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-            <p class="micro-cap" style="color: var(--accent-danger);">ERROR</p>
-            <p class="body-md" style="color: var(--accent-danger); font-size: 0.875rem;">{{ txErrorMsg }}</p>
-          </div>
-          
-          <p class="body-md text-mute" style="font-size: 0.85rem; line-height: 1.5; margin-bottom: 1rem;">
-            Authorize a secure deposit. Our automated routing system will safely transfer your digital dollars (USDC) from your account to this yield pool, pay the network fees on your behalf, and activate interest generation. <strong>1-Click Setup.</strong>
+        <!-- Success view -->
+        <div v-if="txStatus === 'success'" class="flex-grow overflow-y-auto py-8 text-center flex flex-col items-center justify-center">
+          <ShieldCheck :size="64" color="var(--accent-success)" class="mb-4 pulse" />
+          <h3 class="display-md text-gradient" style="color: var(--accent-success);">TRANCHE DEPOSIT COMPLETE</h3>
+          <p class="body-md text-mute max-w-md mx-auto mt-2">
+            Your USDC is now locked into the structured vault on Arc Testnet. Yield waterfall splits are managed autonomously on-chain.
           </p>
-          
-          <div class="mt-4 mb-4">
-            <label class="micro-cap" style="display: block; margin-bottom: 0.5rem; font-weight: 700;">DEPOSIT AMOUNT (USDC)</label>
-            <input type="number" class="text-input" v-model="investAmount" placeholder="Enter USDC amount..." min="1" />
+          <div class="mt-4 p-3 bg-black-20 border border-border-light font-mono text-xs max-w-lg w-full text-center">
+            Tx: <a :href="'https://testnet.arcscan.app/tx/' + txHash" target="_blank" style="color: var(--accent-secondary);">{{ txHash }}</a>
           </div>
+          <button class="btn-primary mt-6" @click="closeModal">RETURN TO DISCOVER</button>
+        </div>
+
+        <!-- Pending view -->
+        <div v-else-if="txStatus === 'pending'" class="flex-grow flex flex-col items-center justify-center text-center">
+          <div class="spinner mb-4"></div>
+          <h3 class="micro-cap">BROADCASTING TO ARC TESTNET</h3>
+          <p class="body-sm text-mute mt-2">Signing tranche investment contract allocation. Please approve the prompt in your wallet.</p>
+        </div>
+
+        <!-- Main Structured view -->
+        <div v-else class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
           
-          <div style="background: rgba(255,255,255,0.02); border-radius: 0.5rem; padding: 1.25rem; border: 1px solid var(--border-light); margin-bottom: 1.5rem;">
-            <div class="flex justify-between mb-2">
-              <span class="micro-cap" style="font-size: 0.65rem;">EXPECTED ANNUAL GROWTH</span>
-              <span class="body-md" style="color: var(--accent-success); font-weight: 700; font-size: 0.875rem;">{{ selectedBond.apy }}% APY</span>
+          <!-- Column 1: Tranche Selector & Deposit -->
+          <div class="space-y-4">
+            <h4 class="micro-cap border-b pb-2" style="border-color: rgba(255,255,255,0.05); color: var(--accent-secondary);">TRANCHE VAULT SELECTOR</h4>
+            
+            <div class="grid grid-cols-2 gap-4">
+              <!-- Senior Tranche Card -->
+              <div 
+                class="glass-panel cursor-pointer flex flex-col justify-between p-4" 
+                :class="{ 'active-tranche': selectedTranche === 0 }"
+                style="border-color: selectedTranche === 0 ? 'var(--accent-success)' : 'rgba(255,255,255,0.05)';"
+                @click="selectedTranche = 0"
+              >
+                <div>
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="badge" style="background: rgba(130, 255, 170, 0.1); color: var(--accent-success); border-radius: 0;">SENIOR</span>
+                    <ShieldCheck :size="14" color="var(--accent-success)" />
+                  </div>
+                  <div style="font-weight: 800; font-size: 1.4rem; color: var(--accent-success);">{{ trancheData.senior.targetAPY.toFixed(2) }}%</div>
+                  <span class="micro-cap text-mute" style="font-size: 0.62rem;">TARGET FIXED APY</span>
+                </div>
+                <div class="mt-4 pt-2 border-t border-border-light text-xs text-mute" style="border-color: rgba(255,255,255,0.03);">
+                  <div>TVL: {{ trancheData.senior.totalDeposited }} USDC</div>
+                  <div style="color: var(--accent-success); font-weight: bold; font-size: 0.65rem;" class="mt-1">🔒 PRIORITY RETURN PAYOUT</div>
+                </div>
+              </div>
+
+              <!-- Junior Tranche Card -->
+              <div 
+                class="glass-panel cursor-pointer flex flex-col justify-between p-4" 
+                :class="{ 'active-tranche': selectedTranche === 1 }"
+                style="border-color: selectedTranche === 1 ? 'var(--accent-secondary)' : 'rgba(255,255,255,0.05)';"
+                @click="selectedTranche = 1"
+              >
+                <div>
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="badge" style="background: rgba(130, 170, 255, 0.1); color: var(--accent-secondary); border-radius: 0;">JUNIOR</span>
+                    <TrendingUp :size="14" color="var(--accent-secondary)" />
+                  </div>
+                  <div style="font-weight: 800; font-size: 1.4rem; color: var(--accent-secondary);">{{ trancheData.junior.targetAPY.toFixed(2) }}%</div>
+                  <span class="micro-cap text-mute" style="font-size: 0.62rem;">TARGET FLOATING APY</span>
+                </div>
+                <div class="mt-4 pt-2 border-t border-border-light text-xs text-mute" style="border-color: rgba(255,255,255,0.03);">
+                  <div>TVL: {{ trancheData.junior.totalDeposited }} USDC</div>
+                  <div style="color: var(--accent-secondary); font-weight: bold; font-size: 0.65rem;" class="mt-1">🚀 CASCADE UPSIDE PAYOUT</div>
+                </div>
+              </div>
             </div>
-            <div class="flex justify-between mb-2">
-              <span class="micro-cap" style="font-size: 0.65rem;">PROCESSING FEES</span>
-              <span class="body-md" style="color: var(--accent-success); font-size: 0.875rem; font-weight: 700;">SPONSORED (FREE)</span>
+
+            <!-- Investment inputs -->
+            <div class="glass-panel p-4">
+              <label class="micro-cap block mb-2">DEPOSIT AMOUNT IN {{ selectedTranche === 0 ? 'SENIOR' : 'JUNIOR' }} (USDC)</label>
+              <div class="flex gap-2">
+                <input type="number" class="text-input" v-model="investAmount" placeholder="Amount..." style="flex-grow:1;" />
+                <button 
+                  class="btn-primary" 
+                  style="border-radius:0px;"
+                  :style="{ 
+                    background: selectedTranche === 0 ? 'var(--accent-success)' : 'var(--accent-secondary)',
+                    borderColor: selectedTranche === 0 ? 'var(--accent-success)' : 'var(--accent-secondary)',
+                    color: '#131313'
+                  }"
+                  @click="confirmInvest"
+                  :disabled="!investAmount || Number(investAmount) <= 0"
+                >
+                  DEPOSIT
+                </button>
+              </div>
+              <div class="text-xs text-mute mt-2">
+                My on-chain balance in this tranche: 
+                <span class="text-white font-mono">{{ selectedTranche === 0 ? trancheData.senior.userDeposited : trancheData.junior.userDeposited }} USDC</span>
+              </div>
             </div>
-            <div class="flex justify-between pt-2 mt-2" style="border-top: 1px solid var(--border-light);">
-              <span class="micro-cap" style="color: var(--text-main); font-size: 0.65rem; font-weight: 700;">TOTAL TO DEPOSIT</span>
-              <span class="body-md" style="font-weight: 800; color: var(--accent-gold);">{{ store.fmt(selectedBond.price * (parseInt(investAmount) || 0)) }}</span>
+
+            <!-- On-chain Payout logs -->
+            <div class="glass-panel p-4" style="max-height: 220px; overflow-y: auto;">
+              <span class="micro-cap block mb-2" style="color: var(--accent-gold);">ON-CHAIN WATERFALL LOGS</span>
+              <table class="premium-table" style="font-size: 0.72rem;">
+                <thead>
+                  <tr>
+                    <th>TX</th>
+                    <th>SENIOR PAID</th>
+                    <th>JUNIOR PAID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="payoutLogs.length === 0">
+                    <td colspan="3" class="text-center text-mute py-2">No historical waterfall payouts found.</td>
+                  </tr>
+                  <tr v-for="(log, idx) in payoutLogs" :key="idx">
+                    <td>
+                      <a :href="'https://testnet.arcscan.app/tx/' + log.txHash" target="_blank" style="color: var(--accent-secondary);">
+                        {{ log.txHash.slice(0, 8) }}...
+                      </a>
+                    </td>
+                    <td style="color: var(--accent-success);">+{{ log.seniorPaid }} USDC</td>
+                    <td style="color: var(--accent-secondary);">+{{ log.juniorPaid }} USDC</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+
           </div>
 
-          <!-- "What Happens Next?" Safety Indicators -->
-          <div class="flex items-center gap-2 mb-4" style="background: rgba(195, 232, 141, 0.05); padding: 0.75rem; border: 1px dashed rgba(195, 232, 141, 0.2);">
-            <Shield :size="14" color="var(--accent-success)" />
-            <span class="micro-cap" style="font-size: 0.6rem; color: #c3e88d;">Secure Bridge relocation is fully insured and managed automatically.</span>
+          <!-- Column 2: Simulator & Chart.js diagram -->
+          <div class="space-y-4 flex flex-col justify-between">
+            <div>
+              <h4 class="micro-cap border-b pb-2" style="border-color: rgba(255,255,255,0.05); color: var(--accent-gold);">INTERACTIVE WATERFALL APY SIMULATOR</h4>
+              <p class="body-sm text-mute" style="font-size: 0.8rem;">
+                Simulate structured waterfall distribution. Senior receives up to its priority APY targets first, and Junior captures all residual yield surplus.
+              </p>
+
+              <!-- Simulator controls -->
+              <div class="flex items-center gap-4 mt-4 bg-black-20 p-3 border border-border-light">
+                <div style="flex-grow:1;">
+                  <label class="micro-cap block mb-1">SIMULATED PORTFOLIO YIELD INFLOW (USDC)</label>
+                  <input type="range" min="100" max="10000" step="100" class="w-full cursor-pointer" v-model="simulatedYield" @input="runWaterfallSimulation" />
+                </div>
+                <div class="font-mono text-white text-md font-bold" style="min-width: 90px; text-align: right;">
+                  ${{ simulatedYield }} USDC
+                </div>
+              </div>
+            </div>
+
+            <!-- Chart Container -->
+            <div style="height: 180px; position: relative;" class="my-2">
+              <canvas ref="simulatorChartRef"></canvas>
+            </div>
+
+            <!-- Admin Contract Control Panel -->
+            <div style="background: rgba(255, 184, 108, 0.05); border: 1px dashed var(--accent-gold); padding: 1rem;">
+              <span class="micro-cap block text-gradient" style="color: var(--accent-gold); margin-bottom: 0.25rem;">ADMIN WATERFALL CONTROLLER</span>
+              <p class="text-mute mb-2" style="font-size: 0.72rem; text-transform: none;">
+                Distribute yield pool returns on-chain to trigger the actual waterfall division. Senior and Junior shares accrue immediately in the smart contract.
+              </p>
+              <div class="flex gap-2">
+                <input type="number" class="text-input" style="font-size: 0.75rem; flex-grow:1;" v-model="adminYieldAmount" placeholder="Yield to distribute (USDC)..." />
+                <button 
+                  class="btn-primary flex items-center gap-1" 
+                  style="font-size: 0.7rem; padding: 4px 8px; border-radius:0; background: var(--accent-gold); border-color: var(--accent-gold); color: #131313;"
+                  @click="adminDistributeYield"
+                  :disabled="isAdminProcessing || !adminYieldAmount"
+                >
+                  <Play :size="10" /> DISTRIBUTE
+                </button>
+              </div>
+            </div>
+
           </div>
-          
-          <button 
-            class="btn-primary mt-2" 
-            :class="{ 'btn-loading': txStatus === 'pending' || txStatus === 'simulating' }"
-            style="width: 100%;" 
-            @click="confirmInvest" 
-            :disabled="!investAmount || investAmount < 1 || txStatus === 'pending' || txStatus === 'simulating'"
-          >
-            <span v-if="txStatus === 'pending' || txStatus === 'simulating'" class="spinner-inline mr-2"></span>
-            {{ txStatus === 'pending' || txStatus === 'simulating' ? 'ROUTING TRANSFER...' : 'START EARNING INTEREST (1-CLICK)' }}
-          </button>
         </div>
+
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.active-tranche {
+  border-width: 2px !important;
+  background: rgba(255, 255, 255, 0.01);
+  box-shadow: 0 0 15px rgba(255, 184, 108, 0.05);
+}
+
+.bg-black-20 {
+  background: rgba(0, 0, 0, 0.2);
+}
+</style>
