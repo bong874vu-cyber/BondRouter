@@ -8,6 +8,7 @@ const routes = [
   { path: '/darkpool', name: 'DarkPool', component: () => import('../views/DarkPool.vue') },
   { path: '/docs', name: 'Docs', component: () => import('../views/Docs.vue') },
   { path: '/settings', name: 'Settings', component: () => import('../views/Settings.vue') },
+  { path: '/secondary', name: 'SecondaryMarket', component: () => import('../views/SecondaryMarket.vue') },
 ]
 
 const router = createRouter({
