@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./ComplianceRegistry.sol";
 
 /**
  * @title BondRouter
- * @dev Operational enterprise-grade BondRouter for managing USDC investments, 
- * secure on-chain positions tracking, Pedersen Commitment OTC escrows, and real-time yield harvesting.
- * Deployed and verified on Arc network (USDC as native gas).
+ * @dev Upgraded operational enterprise-grade BondRouter for managing USDC investments, 
+ * secure on-chain ERC-1155 positions, Pedersen Commitment OTC escrows, and compliance checks.
  */
-contract BondRouter {
-    address public owner;
+contract BondRouter is ERC1155, Ownable {
+    
+    // Compliance Registry contract reference
+    ComplianceRegistry public complianceRegistry;
 
     // Track total investments and outstanding corporate balances
     mapping(address => mapping(string => uint256)) public userInvestments;
@@ -39,26 +44,42 @@ contract BondRouter {
     event YieldAccrued(address indexed user, uint256 amount);
     event DarkPoolSettled(uint256 indexed orderId, address indexed user, address indexed counterparty, uint256 amount);
     event GasSponsorshipLogged(uint256 gasSaved, uint256 totalGasSaved);
+    event ComplianceRegistryUpdated(address indexed newRegistry);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only executive owner can execute");
-        _;
-    }
+    constructor() ERC1155("https://api.bondrouter.io/metadata/{id}.json") Ownable(msg.sender) {}
 
-    constructor() {
-        owner = msg.sender;
+    /**
+     * @dev Set compliance registry contract address.
+     */
+    function setComplianceRegistry(address _complianceRegistry) external onlyOwner {
+        complianceRegistry = ComplianceRegistry(_complianceRegistry);
+        emit ComplianceRegistryUpdated(_complianceRegistry);
     }
 
     /**
-     * @dev Process an investment order with real allocation tracking.
+     * @dev Helper to convert bond ID string to a unique uint256 token ID.
+     */
+    function getBondTokenId(string memory bondId) public pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(bondId)));
+    }
+
+    /**
+     * @dev Process an investment order with compliance checking and ERC-1155 token minting.
      * Native USDC (msg.value) is deposited directly into the treasury pool.
      */
     function invest(string memory bondId, uint256 amount) external payable {
+        if (address(complianceRegistry) != address(0)) {
+            require(complianceRegistry.isWhitelisted(msg.sender), "Investor is not whitelisted");
+        }
         require(msg.value > 0, "Must deposit native USDC");
         require(msg.value == amount, "USDC amount mismatch with transfer value");
 
         userInvestments[msg.sender][bondId] += msg.value;
         bondTotalAllocated[bondId] += msg.value;
+
+        // Mint compliant ERC-1155 token to represent position
+        uint256 tokenId = getBondTokenId(bondId);
+        _mint(msg.sender, tokenId, msg.value, "");
 
         emit Investment(msg.sender, bondId, amount);
     }
@@ -68,6 +89,9 @@ contract BondRouter {
      * The backing USDC amount (msg.value) is locked in escrow until ZK settlement.
      */
     function submitConfidentialOrder(string memory asset, uint256 sizeHash) external payable {
+        if (address(complianceRegistry) != address(0)) {
+            require(complianceRegistry.isWhitelisted(msg.sender), "Investor is not whitelisted");
+        }
         require(msg.value > 0, "Must back confidential order with native USDC escrow");
         require(orderIndexByCommitment[sizeHash] == 0, "Commitment hash already registered");
 
@@ -111,6 +135,9 @@ contract BondRouter {
      * @dev Accrue yield to active allocators (callable only by automated harvesting relayers).
      */
     function accrueYield(address user, uint256 amount) external onlyOwner {
+        if (address(complianceRegistry) != address(0)) {
+            require(complianceRegistry.isWhitelisted(user), "Recipient is not whitelisted");
+        }
         require(amount > 0, "Yield accrued must be greater than zero");
         userYieldBalances[user] += amount;
         emit YieldAccrued(user, amount);
@@ -120,6 +147,9 @@ contract BondRouter {
      * @dev Harvest accrued corporate yield, releasing native USDC from smart router to user wallet.
      */
     function harvestYield(uint256 amount) external {
+        if (address(complianceRegistry) != address(0)) {
+            require(complianceRegistry.isWhitelisted(msg.sender), "Investor is not whitelisted");
+        }
         require(userYieldBalances[msg.sender] >= amount, "Insufficient yield balance to harvest");
 
         userYieldBalances[msg.sender] -= amount;
@@ -135,6 +165,25 @@ contract BondRouter {
         totalGasSponsored += gasSaved;
         totalTransactionsSponsored++;
         emit GasSponsorshipLogged(gasSaved, totalGasSponsored);
+    }
+
+    /**
+     * @dev Hook to enforce transfer restrictions on ERC-1155 tokens between user wallets.
+     */
+    function _update(
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory values
+    ) internal virtual override {
+        super._update(from, to, ids, values);
+        
+        // Skip check if it is a mint or burn
+        if (from != address(0) && to != address(0)) {
+            if (address(complianceRegistry) != address(0)) {
+                require(complianceRegistry.isWhitelisted(to), "Recipient is not whitelisted");
+            }
+        }
     }
 
     /**
