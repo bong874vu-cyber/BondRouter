@@ -5,6 +5,7 @@ import { useBondStore } from './stores/bond'
 import { useWeb3Store } from './stores/web3'
 import Toast from './components/Toast.vue'
 import WalletModal from './components/WalletModal.vue'
+import SocialLoginModal from './components/SocialLoginModal.vue'
 import TreasuryAssistant from './components/TreasuryAssistant.vue'
 import { useNumberCounter } from './composables/useCounter'
 import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen, Settings } from 'lucide-vue-next'
@@ -12,6 +13,7 @@ import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen, Settin
 const store = useBondStore()
 const web3 = useWeb3Store()
 const isWalletModalOpen = ref(false)
+const isSocialLoginModalOpen = ref(false)
 
 const displayBalance = useNumberCounter(computed(() => parseFloat(web3.balance) || 0))
 
@@ -45,6 +47,9 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
         <RouterLink to="/darkpool">
           <div class="flex items-center gap-2"><ShieldCheck :size="16" /> Shielded Trading</div>
         </RouterLink>
+        <RouterLink to="/secondary">
+          <div class="flex items-center gap-2"><ArrowRightLeft :size="16" /> Secondary Trade</div>
+        </RouterLink>
         <RouterLink to="/docs">
           <div class="flex items-center gap-2"><BookOpen :size="16" /> Documentation</div>
         </RouterLink>
@@ -63,6 +68,11 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
       
       <button v-if="!web3.isConnected" class="btn-primary" @click="isWalletModalOpen = true">
         <Wallet :size="18" /> Connect Account
+      </button>
+      <button v-else-if="web3.isCircleWallet" class="btn-glass" @click="web3.disconnect()" style="border-color: var(--accent-gold); color: var(--accent-gold); display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem;">
+        <ShieldCheck :size="16" color="var(--accent-gold)" />
+        <span style="font-weight: 700;">{{ web3.circleUserEmail }}</span>
+        <span style="opacity: 0.6; font-size: 0.75rem;">({{ truncate(web3.address) }})</span>
       </button>
       <button v-else class="btn-glass" @click="web3.disconnect()">
         <Wallet :size="18" color="var(--accent-primary)" />
@@ -99,7 +109,8 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
   </div>
 
   <Toast />
-  <WalletModal :isOpen="isWalletModalOpen" @close="isWalletModalOpen = false" />
+  <WalletModal :isOpen="isWalletModalOpen" @close="isWalletModalOpen = false" @open-social-login="isSocialLoginModalOpen = true" />
+  <SocialLoginModal :isOpen="isSocialLoginModalOpen" @close="isSocialLoginModalOpen = false" />
   <TreasuryAssistant />
 </template>
 

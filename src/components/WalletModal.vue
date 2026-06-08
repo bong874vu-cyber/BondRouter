@@ -7,7 +7,7 @@ const props = defineProps({
   isOpen: Boolean
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'open-social-login'])
 
 const web3 = useWeb3Store()
 const activeOption = ref('metamask') // 'metamask', 'coinbase', 'rainbow', 'walletconnect'
@@ -43,6 +43,20 @@ async function connectWallet(walletName) {
           </div>
 
           <div class="flex flex-col gap-3">
+            <!-- Circle Embedded Wallet -->
+            <div 
+              class="wallet-option"
+              style="border: 1px solid var(--accent-gold); background: rgba(212, 175, 55, 0.05);"
+              @click="emit('open-social-login'); emit('close');"
+            >
+              <div class="flex items-center gap-3">
+                <div class="wallet-icon-frame" style="background: rgba(212, 175, 55, 0.2); display: flex; align-items: center; justify-content: center;">
+                  <Wallet :size="12" color="var(--accent-gold)" />
+                </div>
+                <span class="wallet-name" style="color: var(--accent-gold); font-weight: 700;">Email / Social Login</span>
+              </div>
+              <span class="micro-cap" style="color: var(--accent-gold); font-size: 0.65rem; font-weight: 800;">FAST ONBOARDING</span>
+            </div>
             <!-- MetaMask -->
             <div 
               class="wallet-option"
