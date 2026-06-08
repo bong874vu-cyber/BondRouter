@@ -789,6 +789,50 @@ export const useWeb3Store = defineStore('web3', () => {
     }
   }
 
+  const proposalsList = ref([
+    { id: 1, creator: '0x17d23d940656a81c4a008c2a8fe72fde190a2a79', description: 'Rebalance Yield Allocation to Senior: 85%, Junior: 15%', actionId: 101, votesFor: 1250, votesAgainst: 200, endBlock: 504900, executed: false, active: true },
+    { id: 2, creator: '0x32ba12cb65cd8ea00e84b80b7a98b9f12dc1e866', description: 'Enable StableFX swaps for GBP/EUR payout targets', actionId: 102, votesFor: 840, votesAgainst: 950, endBlock: 504950, executed: false, active: true }
+  ])
+
+  async function fetchGovernanceProposals() {
+    return proposalsList.value
+  }
+
+  async function submitProposalTx(description, actionId) {
+    const newProp = {
+      id: proposalsList.value.length + 1,
+      creator: '0x51c91Ece1a28D5F66d2139268f76dfD326a0D342',
+      description,
+      actionId: Number(actionId),
+      votesFor: 0,
+      votesAgainst: 0,
+      endBlock: 508500,
+      executed: false,
+      active: true
+    }
+    proposalsList.value.unshift(newProp)
+    return newProp.id
+  }
+
+  async function submitVoteTx(proposalId, support, tokenId) {
+    const prop = proposalsList.value.find(p => p.id === proposalId)
+    if (prop) {
+      if (support) prop.votesFor += 100
+      else prop.votesAgainst += 100
+    }
+  }
+
+  async function fetchComplianceLogs() {
+    try {
+      const res = await fetch('/api/compliance/report')
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.warn("fetchComplianceLogs failed:", e)
+      return { logs: [] }
+    }
+  }
+
   return { 
     isConnected, address, balance, network, error, connect, disconnect, 
     sendInvestmentTx, harvestYieldCrossChain, fetchOnChainTrades, fetchOnChainInvestments,
@@ -801,6 +845,7 @@ export const useWeb3Store = defineStore('web3', () => {
     isCircleWallet, circleUserEmail, loginWithCircleEmbeddedWallet,
     cctp,
     isAiDelegationActive, aiAgentDailyLimit, aiAgentAddress, aiAgentRegistryAddress, aiLogs, triggerAiLog,
-    smartAccount
+    smartAccount,
+    proposalsList, fetchGovernanceProposals, submitProposalTx, submitVoteTx, fetchComplianceLogs
   }
 })

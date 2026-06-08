@@ -647,6 +647,28 @@ export default defineConfig({
               return
             }
 
+            // 9. COMPLIANCE & TELEMETRY AUDIT REPORT EXPORTER
+            if (endpoint === '/compliance/report' && req.method === 'GET') {
+              try {
+                const logs = [
+                  { id: "TX_10821", date: "2026-06-08 10:15:30", type: "Deposit (Senior)", amount: "50000.00 USDC", gasFee: "$0.00 (Sponsored)", status: "COMPLIANT", complianceKey: "KYC_VERIFIED_ARC" },
+                  { id: "TX_10822", date: "2026-06-08 11:30:00", type: "OTC Dark Pool Lock", amount: "100000.00 USDC", gasFee: "$0.00 (Sponsored)", status: "COMPLIANT", complianceKey: "PEDERSEN_ZK_ESCROW" },
+                  { id: "TX_10823", date: "2026-06-08 12:45:12", type: "Sweep Yield Allocation", amount: "420.50 EURC", gasFee: "$0.00 (Sponsored)", status: "COMPLIANT", complianceKey: "STABLEFX_USDC_EURC" },
+                  { id: "TX_10824", date: "2026-06-08 14:10:05", type: "Secondary Bid CLOB", amount: "15000.00 USDC", gasFee: "$0.00 (Sponsored)", status: "COMPLIANT", complianceKey: "LIMIT_ORDER_ESCROW" }
+                ];
+                res.end(JSON.stringify({
+                  success: true,
+                  generatedAt: new Date().toISOString(),
+                  systemHash: crypto.createHash('sha256').update(JSON.stringify(logs)).digest('hex'),
+                  logs
+                }))
+              } catch (err) {
+                res.statusCode = 500
+                res.end(JSON.stringify({ error: err.message }))
+              }
+              return
+            }
+
             // Unknown Circle Endpoint
             res.statusCode = 404
             res.end(JSON.stringify({ error: 'Endpoint Not Found' }))

@@ -8,7 +8,7 @@ import WalletModal from './components/WalletModal.vue'
 import SocialLoginModal from './components/SocialLoginModal.vue'
 import TreasuryAssistant from './components/TreasuryAssistant.vue'
 import { useNumberCounter } from './composables/useCounter'
-import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen, Settings } from 'lucide-vue-next'
+import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen, Settings, Landmark } from 'lucide-vue-next'
 
 const store = useBondStore()
 const web3 = useWeb3Store()
@@ -49,6 +49,12 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
         </RouterLink>
         <RouterLink to="/secondary">
           <div class="flex items-center gap-2"><ArrowRightLeft :size="16" /> Secondary Trade</div>
+        </RouterLink>
+        <RouterLink to="/governance">
+          <div class="flex items-center gap-2"><Landmark :size="16" /> Governance</div>
+        </RouterLink>
+        <RouterLink to="/compliance">
+          <div class="flex items-center gap-2"><ShieldCheck :size="16" /> Compliance</div>
         </RouterLink>
         <RouterLink to="/docs">
           <div class="flex items-center gap-2"><BookOpen :size="16" /> Documentation</div>
