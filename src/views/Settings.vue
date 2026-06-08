@@ -73,6 +73,23 @@ async function handleMockKyc() {
   }
 }
 
+function toggleAiDelegation() {
+  web3.isAiDelegationActive = !web3.isAiDelegationActive
+  if (web3.isAiDelegationActive) {
+    web3.triggerAiLog('DELEGATED', 'AI Agent is now authorized to monitor and route yields on Arc.')
+    ui.addToast('AI TREASURY DELEGATION ENABLED.', 'success')
+  } else {
+    web3.triggerAiLog('SUSPENDED', 'AI Agent credentials suspended by owner.')
+    ui.addToast('AI TREASURY DELEGATION SUSPENDED.', 'info')
+  }
+}
+
+async function updateAgentLimit() {
+  if (web3.aiAgentDailyLimit <= 0) return
+  web3.triggerAiLog('POLICY_UPDATE', `Daily spending limit updated to ${web3.aiAgentDailyLimit} USDC.`)
+  ui.addToast(`AGENT DAILY SPENDING LIMIT UPDATED TO ${web3.aiAgentDailyLimit} USDC.`, 'success')
+}
+
 onMounted(() => {
   fetchStatus()
 })
@@ -303,6 +320,78 @@ onMounted(() => {
           >
             {{ processingWhitelist ? 'SUBMITTING...' : 'SUBMIT REGISTRY UPDATE' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Treasury Agent Desk (Agent Wallets & CLI) -->
+    <div class="glass-panel fade-up delay-3" style="margin-top: 3rem;">
+      <div class="flex items-center justify-between mb-4 pb-4 border-b" style="border-color: rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div class="micro-cap" style="color: var(--accent-gold); letter-spacing: 0.1em; display: flex; align-items: center; gap: 0.25rem;">
+            <Cpu :size="12" /> CIRCLE AGENT STACK INTEGRATION
+          </div>
+          <h3 class="display-lg mt-1" style="font-size: 1.5rem; margin: 0;">AI TREASURY AGENT DESK</h3>
+        </div>
+        <div>
+          <button 
+            class="btn-toggle" 
+            :class="{ 'active': web3.isAiDelegationActive, 'inactive': !web3.isAiDelegationActive }"
+            @click="toggleAiDelegation"
+            style="cursor: pointer;"
+          >
+            {{ web3.isAiDelegationActive ? 'DELEGATION ENABLED' : 'DELEGATION DISABLED' }}
+          </button>
+        </div>
+      </div>
+
+      <p class="body-md text-mute mb-4" style="font-size: 0.88rem; line-height: 1.5;">
+        Delegate automated portfolio sweeps, yield swaps, and dark pool rebalancing to an autonomous AI agent wallet registered via ERC-8004. Limit policies are enforced natively on-chain.
+      </p>
+
+      <div class="grid-two-columns-responsive gap-6 mb-6" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <div>
+          <div class="form-group mb-3">
+            <label class="micro-cap text-mute mb-1" style="display: block;">DAILY SPENDING LIMIT (USDC)</label>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input 
+                type="number" 
+                class="text-input font-mono" 
+                v-model.number="web3.aiAgentDailyLimit"
+                style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); padding: 0.6rem 0.8rem; color: #fff; flex: 1; box-sizing: border-box; outline: none; border-radius: 0px;"
+              />
+              <button 
+                class="btn-primary" 
+                style="padding: 0.65rem 1rem; font-size: 0.75rem; background: var(--accent-gold); border-color: var(--accent-gold); color: #000; font-weight: 800; cursor: pointer; border-radius: 0px; border: none;"
+                @click="updateAgentLimit"
+              >
+                APPLY LIMIT
+              </button>
+            </div>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-light); padding: 1rem; margin-top: 1.5rem;">
+            <div class="micro-cap text-mute mb-2" style="font-size: 0.65rem;">AGENT DEPLOYMENT & IDENTITY</div>
+            <div class="flex justify-between items-center py-1 font-mono" style="font-size: 0.75rem; display: flex; justify-content: space-between;">
+              <span style="color: var(--text-muted);">ERC-8004 REGISTRY:</span>
+              <span style="color: var(--accent-secondary); word-break: break-all;">{{ web3.aiAgentRegistryAddress }}</span>
+            </div>
+            <div class="flex justify-between items-center py-1 font-mono mt-1" style="font-size: 0.75rem; display: flex; justify-content: space-between;">
+              <span style="color: var(--text-muted);">AGENT WALLET:</span>
+              <span style="color: var(--accent-secondary); word-break: break-all;">{{ web3.aiAgentAddress }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="micro-cap text-mute mb-2">AUTONOMOUS AUDIT LOGS</div>
+          <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-light); padding: 1rem; height: 180px; overflow-y: auto; font-family: monospace; font-size: 0.72rem; line-height: 1.4; color: var(--text-muted); text-align: left;">
+            <div v-for="(log, idx) in web3.aiLogs" :key="idx" style="margin-bottom: 0.5rem; border-bottom: 1px dashed rgba(255,255,255,0.03); padding-bottom: 0.25rem;">
+              <span style="color: var(--accent-gold);">[{{ log.timestamp }}]</span>
+              <span style="color: var(--accent-success); font-weight: bold; margin: 0 0.25rem;">{{ log.action }}</span>
+              <span>{{ log.description }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
