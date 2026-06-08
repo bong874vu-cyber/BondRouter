@@ -3,12 +3,13 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title BondGovernance
  * @dev Simple decentralized governance contract allowing ERC-1155 bond token holders to vote on platform upgrades.
  */
-contract BondGovernance is ReentrancyGuard {
+contract BondGovernance is ReentrancyGuard, Ownable {
     
     struct Proposal {
         uint256 id;
@@ -25,7 +26,7 @@ contract BondGovernance is ReentrancyGuard {
 
     address public bondRouter;
     uint256 public nextProposalId = 1;
-    uint256 public constant VOTING_PERIOD_BLOCKS = 300; // Fast voting period for testnet demo (~1 hour)
+    uint256 public votingPeriodBlocks = 300; // Configurable voting period blocks
 
     mapping(uint256 => Proposal) public proposals;
     mapping(uint256 => mapping(address => bool)) public hasVoted;
@@ -33,10 +34,20 @@ contract BondGovernance is ReentrancyGuard {
     event ProposalCreated(uint256 indexed proposalId, address indexed creator, string description, uint256 actionId);
     event VoteCast(uint256 indexed proposalId, address indexed voter, bool support, uint256 weight);
     event ProposalExecuted(uint256 indexed proposalId);
+    event VotingPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
 
-    constructor(address _bondRouter) {
+    constructor(address _bondRouter) Ownable(msg.sender) {
         require(_bondRouter != address(0), "INVALID BOND ROUTER");
         bondRouter = _bondRouter;
+    }
+
+    /**
+     * @notice Set configurable voting block duration.
+     */
+    function setVotingPeriod(uint256 _newPeriod) external onlyOwner {
+        require(_newPeriod > 0, "INVALID PERIOD LENGTH");
+        emit VotingPeriodUpdated(votingPeriodBlocks, _newPeriod);
+        votingPeriodBlocks = _newPeriod;
     }
 
     /**
@@ -53,7 +64,7 @@ contract BondGovernance is ReentrancyGuard {
             votesFor: 0,
             votesAgainst: 0,
             startBlock: block.number,
-            endBlock: block.number + VOTING_PERIOD_BLOCKS,
+            endBlock: block.number + votingPeriodBlocks,
             executed: false,
             active: true
         });

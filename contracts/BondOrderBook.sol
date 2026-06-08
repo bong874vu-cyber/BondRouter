@@ -41,10 +41,14 @@ contract BondOrderBook is ReentrancyGuard, IERC1155Receiver {
     address public bondRouter;
     uint256 public nextOrderId = 1;
     mapping(uint256 => Order) public orders;
+    
+    // Claimable native USDC balances derived from cancelled bids or match sells
+    mapping(address => uint256) public pendingClaims;
 
     event OrderPlaced(uint256 indexed orderId, address indexed user, uint256 indexed tokenId, uint256 quantity, uint256 price, bool isBuy);
     event OrderCancelled(uint256 indexed orderId);
     event OrderMatched(uint256 indexed buyOrderId, uint256 indexed sellOrderId, uint256 quantity, uint256 price);
+    event FundsWithdrawn(address indexed user, uint256 amount);
 
     constructor(address _bondRouter) {
         require(_bondRouter != address(0), "INVALID BOND ROUTER");
@@ -98,9 +102,9 @@ contract BondOrderBook is ReentrancyGuard, IERC1155Receiver {
         order.active = false;
 
         if (order.isBuy) {
-            // Refund native USDC
+            // Allocate refund to pending claims
             uint256 refundAmount = order.quantity * order.price;
-            payable(msg.sender).transfer(refundAmount);
+            pendingClaims[msg.sender] += refundAmount;
         } else {
             // Refund ERC-1155 bonds
             IERC1155(bondRouter).safeTransferFrom(address(this), msg.sender, order.tokenId, order.quantity, "");
@@ -131,13 +135,13 @@ contract BondOrderBook is ReentrancyGuard, IERC1155Receiver {
         // Perform settlement: Transfer ERC-1155 to Buyer
         IERC1155(bondRouter).safeTransferFrom(address(this), buyOrder.user, buyOrder.tokenId, matchQuantity, "");
 
-        // Transfer USDC to Seller
-        payable(sellOrder.user).transfer(totalCost);
+        // Allocate USDC to Seller's pending claims
+        pendingClaims[sellOrder.user] += totalCost;
 
         // Refund buyer any excess USDC if bid price exceeded ask price
         if (buyOrder.price > tradePrice) {
             uint256 surplus = matchQuantity * (buyOrder.price - tradePrice);
-            payable(buyOrder.user).transfer(surplus);
+            pendingClaims[buyOrder.user] += surplus;
         }
 
         // Update remaining balances
@@ -152,6 +156,19 @@ contract BondOrderBook is ReentrancyGuard, IERC1155Receiver {
         }
 
         emit OrderMatched(buyOrderId, sellOrderId, matchQuantity, tradePrice);
+    }
+
+    /**
+     * @notice Withdraw claimable USDC balance.
+     */
+    function withdrawClaimableBalance() external nonReentrant {
+        uint256 amount = pendingClaims[msg.sender];
+        require(amount > 0, "NO CLAIMABLE BALANCE");
+
+        pendingClaims[msg.sender] = 0;
+        payable(msg.sender).transfer(amount);
+
+        emit FundsWithdrawn(msg.sender, amount);
     }
 
     // ERC-1155 Receiver Implementation
