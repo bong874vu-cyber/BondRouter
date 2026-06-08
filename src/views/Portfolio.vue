@@ -60,6 +60,25 @@ async function handleHarvest() {
   }
 }
 
+const upgrading = ref(false)
+
+async function triggerScaUpgrade() {
+  if (!web3.address) {
+    ui.addToast('CONNECT YOUR WALLET FIRST.', 'error')
+    return
+  }
+  upgrading.value = true
+  try {
+    ui.addToast('DEPLOYING SMART CONTRACT ACCOUNT...', 'info')
+    await web3.smartAccount.upgradeToSmartAccount(web3.address)
+    ui.addToast('SMART ACCOUNT ACTIVE. GAS SPONSORSHIP ENABLED.', 'success')
+  } catch (err) {
+    ui.addToast('UPGRADE FAILED.', 'error')
+  } finally {
+    upgrading.value = false
+  }
+}
+
 const truncate = (str) => str ? `${str.slice(0,10)}...${str.slice(-8)}` : 'N/A'
 
 const getTokenIdString = (bondId) => {
@@ -307,6 +326,58 @@ onMounted(async () => {
 
     <!-- Active Content Block (Holdings Loaded) -->
     <div v-else class="fade-in">
+
+      <!-- Account Abstraction Upgrade Wizard / Sponsored Gas Status -->
+      <div class="glass-panel mb-6 fade-up" style="margin-bottom: 2rem; border-color: rgba(130, 170, 255, 0.15);">
+        <div class="flex items-center justify-between flex-wrap gap-4" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 1rem; text-align: left;">
+            <div style="background: rgba(130, 170, 255, 0.1); border: 1px solid var(--accent-secondary); padding: 0.75rem; display: flex; align-items: center; justify-content: center;">
+              <Shield :size="24" color="var(--accent-secondary)" />
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <h4 style="margin: 0; font-size: 1.1rem; color: #fff; font-weight: 800;">
+                  {{ web3.smartAccount.isScaDeployed ? 'GASLESS SMART CONTRACT ACCOUNT ACTIVE' : 'UPGRADE TO GASLESS SMART ACCOUNT' }}
+                </h4>
+                <span v-if="web3.smartAccount.isScaDeployed" class="badge" style="background: rgba(130, 255, 170, 0.15); color: var(--accent-success); font-size: 0.65rem; border-radius: 0px;">
+                  SPONSORED BY PAYMASTER
+                </span>
+                <span v-else class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); font-size: 0.65rem; border-radius: 0px;">
+                  ERC-4337 UPGRADE AVAILABLE
+                </span>
+              </div>
+              <p class="text-mute mb-0 mt-1" style="font-size: 0.82rem; margin: 0; line-height: 1.4;">
+                {{ web3.smartAccount.isScaDeployed 
+                  ? `Deterministic SCA address active: ${web3.smartAccount.scaAddress}. All trades, sweeps, and allocations are 100% gas-sponsored.` 
+                  : 'Upgrade your standard account to a modular Smart Account to execute gasless transfers, deposits, and sweeps.' }}
+              </p>
+            </div>
+          </div>
+          <div>
+            <button 
+              v-if="!web3.smartAccount.isScaDeployed"
+              class="btn-primary" 
+              style="padding: 0.6rem 1.2rem; font-size: 0.8rem; background: var(--accent-secondary); border-color: var(--accent-secondary); color: #000; font-weight: 800; border-radius: 0px; border: none; cursor: pointer;"
+              @click="triggerScaUpgrade"
+              :disabled="upgrading"
+            >
+              <RefreshCw v-if="upgrading" :size="12" class="spinner-inline" />
+              {{ upgrading ? 'UPGRADING ACCOUNT...' : 'UPGRADE TO SMART WALLET' }}
+            </button>
+            <div v-else style="display: flex; gap: 1.5rem; align-items: center;">
+              <div style="text-align: right;">
+                <div class="micro-cap text-mute" style="font-size: 0.62rem;">SPONSORED TXS</div>
+                <div class="font-mono font-bold" style="color: var(--accent-secondary); font-size: 1rem;">{{ web3.smartAccount.sponsorCount }}</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="micro-cap text-mute" style="font-size: 0.62rem;">TOTAL GAS SAVED</div>
+                <div class="font-mono font-bold" style="color: var(--accent-success); font-size: 1rem;">+${{ web3.smartAccount.totalGasSaved.toFixed(2) }} USDC</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Empty State Education -->
       <div v-if="store.portfolio.length === 0" class="flex flex-col items-center justify-center fade-up text-center" style="padding: 8rem 0; max-width: 480px; margin: 0 auto;">
         <WalletCards :size="64" color="var(--accent-gold)" style="margin-bottom: 1.5rem; opacity: 0.8;" class="pulse" />

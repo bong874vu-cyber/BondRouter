@@ -5,6 +5,7 @@ import { AppKit } from '@circle-fin/app-kit'
 import { createAdapterFromProvider } from '@circle-fin/adapter-ethers-v6'
 import contractAddress from '../contractAddress.json'
 import { useCctpTracker } from '../composables/useCctpTracker'
+import { useSmartAccount } from '../composables/useSmartAccount'
 
 export const useWeb3Store = defineStore('web3', () => {
   const isConnected = ref(false)
@@ -17,6 +18,8 @@ export const useWeb3Store = defineStore('web3', () => {
   const circleUserEmail = ref('')
   const cctp = useCctpTracker()
   cctp.initTracker()
+
+  const smartAccount = useSmartAccount()
 
   const isAiDelegationActive = ref(false)
   const aiAgentDailyLimit = ref(1000.0)
@@ -797,6 +800,7 @@ export const useWeb3Store = defineStore('web3', () => {
     fetchUnclaimedWaterfallYield,
     isCircleWallet, circleUserEmail, loginWithCircleEmbeddedWallet,
     cctp,
-    isAiDelegationActive, aiAgentDailyLimit, aiAgentAddress, aiAgentRegistryAddress, aiLogs, triggerAiLog
+    isAiDelegationActive, aiAgentDailyLimit, aiAgentAddress, aiAgentRegistryAddress, aiLogs, triggerAiLog,
+    smartAccount
   }
 })
