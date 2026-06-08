@@ -54,6 +54,11 @@ async function confirmInvest() {
     return
   }
   
+  if (!web3.isKycVerified) {
+    ui.addToast('KYC COMPLIANCE VERIFICATION REQUIRED. PLEASE VISIT SETTINGS.', 'error')
+    return
+  }
+  
   const qty = parseInt(investAmount.value)
   if (qty > 0) {
     try {
@@ -66,7 +71,7 @@ async function confirmInvest() {
       txHash.value = hash
       txStatus.value = 'success'
       store.recordInvestment(selectedBond.value.id, qty, hash)
-      ui.addToast('DEPOSIT SUCCESSFULLY REcorded', 'success')
+      ui.addToast('DEPOSIT SUCCESSFULLY RECORDED', 'success')
     } catch (e) {
       txStatus.value = 'error'
       txErrorMsg.value = e.message.substring(0, 100) || 'TRANSACTION WAS DECLINED BY YOUR WALLET OR FAILED.'
@@ -78,6 +83,16 @@ async function confirmInvest() {
 
 <template>
   <div class="page-container fade-in">
+    <!-- Compliance alert banner -->
+    <div v-if="web3.isConnected && !web3.isKycVerified" class="glass-panel mb-4" style="padding: 1rem 1.5rem; border: 1px solid var(--accent-danger); background: rgba(255, 107, 107, 0.05); margin-bottom: 2rem; display: flex; align-items: center; gap: 0.75rem; border-radius: 0px;">
+      <Info :size="18" color="var(--accent-danger)" style="flex-shrink:0;" />
+      <div style="flex-grow: 1;">
+        <span class="micro-cap" style="color: var(--accent-danger); font-weight: bold; display: block; margin-bottom: 0.2rem;">KYC VERIFICATION MANDATORY</span>
+        <p class="micro-cap text-mute" style="text-transform: none; letter-spacing: 0; font-size: 0.78rem; line-height: 1.4; margin: 0;">
+          Your address is currently not registered on the on-chain Compliance Registry. Please navigate to <router-link to="/settings" style="color: var(--accent-primary); text-decoration: underline;">Settings</router-link> to complete KYC.
+        </p>
+      </div>
+    </div>
     <div class="flex items-center gap-2 mb-2 micro-cap" style="color: var(--accent-primary);">
       <Server :size="14" /> SECURE SAVINGS DESK
     </div>

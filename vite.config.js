@@ -265,6 +265,69 @@ export default defineConfig({
               return
             }
 
+            // 4. KYC MOCK VERIFICATION & ON-CHAIN WHITELISTING
+            if (endpoint === '/verify-kyc' && req.method === 'POST') {
+              let body = ''
+              req.on('data', chunk => body += chunk)
+              req.on('end', async () => {
+                try {
+                  const { address } = JSON.parse(body)
+                  if (!address) {
+                    throw new Error("Address is required")
+                  }
+                  console.log(`[Circle Server] Requesting KYC whitelist for: ${address}`)
+
+                  // Attempt on-chain whitelisting if private key is available
+                  const privateKey = process.env.PRIVATE_KEY
+                  const hasKey = !!privateKey
+                  let txHash = ''
+                  let onChainStatus = false
+
+                  if (hasKey) {
+                    try {
+                      const { JsonRpcProvider, Wallet, Contract } = await import('ethers')
+                      const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+                      const wallet = new Wallet(privateKey, provider)
+                      
+                      // Load deployed contract address
+                      const contractAddrJson = JSON.parse(fs.readFileSync('./src/contractAddress.json', 'utf8'))
+                      const registryAddress = contractAddrJson.ComplianceRegistry
+
+                      if (registryAddress) {
+                        const ABI = ["function whitelistInvestor(address investor, bool status) external"]
+                        const contract = new Contract(registryAddress, ABI, wallet)
+                        
+                        console.log(`[Circle Server] Sending whitelist txn for ${address} to registry ${registryAddress}...`)
+                        const tx = await contract.whitelistInvestor(address, true, { gasLimit: 200000n })
+                        txHash = tx.hash
+                        await tx.wait()
+                        onChainStatus = true
+                        console.log(`[Circle Server] Whitelist txn confirmed: ${txHash}`)
+                      } else {
+                        console.warn("[Circle Server] ComplianceRegistry address not found in src/contractAddress.json. Simulating fallback.")
+                      }
+                    } catch (ethersErr) {
+                      console.warn("[Circle Server] Real on-chain whitelisting transaction failed, falling back to simulation:", ethersErr.message)
+                    }
+                  } else {
+                    console.log("[Circle Server] No PRIVATE_KEY configured in environment. KYC verification simulated.")
+                  }
+
+                  res.end(JSON.stringify({ 
+                    success: true, 
+                    address: address, 
+                    whitelisted: true,
+                    onChain: onChainStatus,
+                    txHash: txHash
+                  }))
+                } catch (err) {
+                  res.statusCode = 400
+                  res.end(JSON.stringify({ error: err.message }))
+                }
+              })
+              return
+            }
+
             // Unknown Circle Endpoint
             res.statusCode = 404
             res.end(JSON.stringify({ error: 'Endpoint Not Found' }))

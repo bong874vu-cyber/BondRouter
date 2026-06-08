@@ -5,6 +5,7 @@ import { useUIStore } from '../stores/ui'
 import { useWeb3Store } from '../stores/web3'
 import { useNumberCounter } from '../composables/useCounter'
 import { ArrowDownToLine, WalletCards, TrendingUp, ExternalLink, Activity, Shield, Coins, Copy, ArrowUpRight, Lock } from 'lucide-vue-next'
+import { keccak256, toUtf8Bytes } from 'ethers'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -58,6 +59,16 @@ async function handleHarvest() {
 }
 
 const truncate = (str) => str ? `${str.slice(0,10)}...${str.slice(-8)}` : 'N/A'
+
+const getTokenIdString = (bondId) => {
+  if (!bondId) return ''
+  try {
+    const hash = keccak256(toUtf8Bytes(bondId))
+    return hash.slice(0, 14) + '...' + hash.slice(-10)
+  } catch (e) {
+    return 'N/A'
+  }
+}
 
 
 // Calculate projection data
@@ -282,7 +293,12 @@ onMounted(async () => {
                     {{ p.chain.toUpperCase() }} LINK
                   </span>
                 </td>
-                <td data-label="DEPOSITED" style="font-weight: 700;">{{ p.quantity }} USDC</td>
+                <td data-label="DEPOSITED" style="font-weight: 700;">
+                  <div>{{ p.quantity }} USDC</div>
+                  <div class="micro-cap text-mute" style="font-size: 0.65rem; text-transform: none; font-weight: normal; margin-top: 2px;">
+                    ERC-1155 ID: <span class="font-mono text-gradient" style="font-weight: bold;">{{ getTokenIdString(p.bondId) }}</span>
+                  </div>
+                </td>
                 <td data-label="CURRENT VALUE" style="font-weight: 700;">{{ store.fmt(p.currentValue) }}</td>
                 <td data-label="EARNED INTEREST" style="color: var(--accent-success); font-weight: 700;">+{{ store.fmt(p.accruedYield) }}</td>
                 <td data-label="RECEIPT" class="micro-cap text-mute" style="text-align: right;">

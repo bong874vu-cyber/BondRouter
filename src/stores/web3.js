@@ -11,6 +11,72 @@ export const useWeb3Store = defineStore('web3', () => {
   const balance = ref('0')
   const network = ref('')
   const error = ref('')
+  const isKycVerified = ref(false)
+
+  async function checkKycStatus(userAddr) {
+    if (!userAddr) return false
+    try {
+      if (!window.ethereum) return false
+      const provider = new BrowserProvider(window.ethereum)
+      const registryAddr = contractAddress.ComplianceRegistry
+      if (!registryAddr) {
+        console.warn("ComplianceRegistry address not set in contractAddress.json")
+        return false
+      }
+      
+      const ABI = ["function isWhitelisted(address investor) external view returns (bool)"]
+      const contract = new Contract(registryAddr, ABI, provider)
+      const status = await contract.isWhitelisted(userAddr)
+      isKycVerified.value = status
+      return status
+    } catch (e) {
+      console.warn("KYC status check failed:", e.message)
+      return false
+    }
+  }
+
+  async function triggerMockKyc() {
+    if (!address.value) return
+    try {
+      error.value = ''
+      console.log(`[Frontend] Triggering mock KYC for ${address.value}...`)
+      const res = await fetch('/api/circle/verify-kyc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: address.value })
+      })
+      const data = await res.json()
+      if (data.success) {
+        console.log("[Frontend] KYC verification response:", data)
+        // Check KYC status on-chain
+        await checkKycStatus(address.value)
+      } else {
+        throw new Error(data.error || "Unknown server error")
+      }
+    } catch (e) {
+      console.error("Mock KYC verification failed:", e)
+      error.value = "MOCK KYC REQUEST FAILED."
+    }
+  }
+
+  async function whitelistUser(investorAddr, status) {
+    if (!isConnected.value || !window.ethereum) throw new Error("WALLET NOT CONNECTED.")
+    const provider = new BrowserProvider(window.ethereum)
+    const signer = await provider.getSigner()
+    const registryAddr = contractAddress.ComplianceRegistry
+    if (!registryAddr) throw new Error("COMPLIANCE REGISTRY ADDRESS NOT DEPLOYED.")
+    
+    const ABI = ["function whitelistInvestor(address investor, bool status) external"]
+    const contract = new Contract(registryAddr, ABI, signer)
+    
+    const tx = await contract.whitelistInvestor(investorAddr, status, { gasLimit: 200000n })
+    await tx.wait()
+    
+    if (investorAddr.toLowerCase() === address.value.toLowerCase()) {
+      isKycVerified.value = status
+    }
+    return tx.hash
+  }
 
   async function connect() {
     if (!window.ethereum) {
@@ -52,14 +118,16 @@ export const useWeb3Store = defineStore('web3', () => {
 
         isConnected.value = true
         await fetchBalance(provider, accounts[0])
+        await checkKycStatus(accounts[0])
         const net = await provider.getNetwork()
         network.value = Number(net.chainId) === 5042002 ? 'Arc' : (net.name === 'unknown' ? `Chain ${net.chainId}` : net.name)
         
         // Listeners
-        window.ethereum.on('accountsChanged', (newAccounts) => {
+        window.ethereum.on('accountsChanged', async (newAccounts) => {
           if(newAccounts.length > 0) {
             address.value = newAccounts[0]
-            fetchBalance(new BrowserProvider(window.ethereum), newAccounts[0])
+            await fetchBalance(new BrowserProvider(window.ethereum), newAccounts[0])
+            await checkKycStatus(newAccounts[0])
           } else {
             disconnect()
           }
@@ -93,6 +161,7 @@ export const useWeb3Store = defineStore('web3', () => {
     address.value = ''
     balance.value = '0'
     network.value = ''
+    isKycVerified.value = false
   }
   
   // Real transaction sender integrating with Arc Testnet
@@ -312,6 +381,7 @@ export const useWeb3Store = defineStore('web3', () => {
     isConnected, address, balance, network, error, connect, disconnect, 
     sendInvestmentTx, harvestYieldCrossChain, fetchOnChainTrades, fetchOnChainInvestments,
     circleStatus, circleWallets, circleDistributions, circleLoading,
-    fetchCircleStatus, fetchCircleWallets, distributeYieldToCircleWallets
+    fetchCircleStatus, fetchCircleWallets, distributeYieldToCircleWallets,
+    isKycVerified, checkKycStatus, triggerMockKyc, whitelistUser
   }
 })

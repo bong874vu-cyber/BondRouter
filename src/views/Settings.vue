@@ -13,6 +13,10 @@ const passkeyRegistered = ref(false)
 const generatedSmartAddress = ref('')
 const sponsorGas = ref(true)
 
+const whitelistAddress = ref('')
+const whitelistStatus = ref(true)
+const processingWhitelist = ref(false)
+
 async function fetchStatus() {
   try {
     const res = await fetch('/api/circle/status')
@@ -30,6 +34,43 @@ async function registerPasskey() {
   passkeyRegistered.value = true
   generatedSmartAddress.value = '0x17d23d' + Math.floor(Math.random() * 10000000).toString(16) + 'F9b342C2a79B5e94b2A56cCeA7d7'
   ui.addToast('PASSKEY SMART ACCOUNT REGISTERED SUCCESSFULLY VIA CIRCLE SCA.', 'success')
+}
+
+async function handleWhitelist() {
+  if (!whitelistAddress.value) {
+    ui.addToast('PLEASE PROVIDE AN INVESTOR ADDRESS.', 'error')
+    return
+  }
+  processingWhitelist.value = true
+  try {
+    const txHash = await web3.whitelistUser(whitelistAddress.value, whitelistStatus.value)
+    ui.addToast(`ADDRESS WHITELIST UPDATED SUCCESSFULLY. TX: ${txHash.slice(0, 10)}...`, 'success')
+    whitelistAddress.value = ''
+  } catch (e) {
+    console.error(e)
+    ui.addToast(e.message || 'WHITELISTING TRANSACTION FAILED.', 'error')
+  } finally {
+    processingWhitelist.value = false
+  }
+}
+
+const processingKyc = ref(false)
+async function handleMockKyc() {
+  processingKyc.value = true
+  try {
+    ui.addToast('SUBMITTING IDENTITY VERIFICATION TO KYC SERVICE...', 'info')
+    await web3.triggerMockKyc()
+    if (web3.isKycVerified) {
+      ui.addToast('KYC IDENTITY VERIFIED AND WHITELISTED ON-CHAIN!', 'success')
+    } else {
+      ui.addToast('KYC VERIFICATION SUBMITTED. ON-CHAIN TX PENDING.', 'info')
+    }
+  } catch (e) {
+    console.error(e)
+    ui.addToast('KYC VERIFICATION FAILED.', 'error')
+  } finally {
+    processingKyc.value = false
+  }
 }
 
 onMounted(() => {
@@ -152,6 +193,116 @@ onMounted(() => {
         <div v-else class="flex items-center justify-between mt-4 p-3" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light);">
           <span class="micro-cap text-mute flex items-center gap-1"><Lock :size="10" /> BIOMETRIC GUARDED</span>
           <span class="badge-mini" style="background: rgba(195, 232, 141, 0.1); color: var(--accent-success);">VALID</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compliance & KYC Control Grid -->
+    <div class="grid-two-columns-responsive" style="margin-top: 2rem;">
+      <!-- Compliance & KYC Status -->
+      <div class="glass-panel">
+        <div class="flex items-center justify-between mb-4 border-b pb-4" style="border-color: rgba(255,255,255,0.05);">
+          <h3 class="card-title flex items-center gap-2" style="font-size: 1rem; margin: 0;">
+            <Shield :size="16" color="var(--accent-primary)" />
+            INVESTOR COMPLIANCE STATUS
+          </h3>
+          <span v-if="web3.isKycVerified" class="badge" style="background: rgba(195, 232, 141, 0.1); color: var(--accent-success); border-radius: 0px;">
+            KYC VERIFIED
+          </span>
+          <span v-else class="badge" style="background: rgba(255, 107, 107, 0.1); color: var(--accent-danger); border-radius: 0px;">
+            UNVERIFIED
+          </span>
+        </div>
+
+        <p class="body-md text-mute mb-4" style="font-size: 0.88rem; line-height: 1.5;">
+          GCC regulatory compliance guidelines require active wallet whitelisting to deposit treasury funds or trade tokenized RWA shares.
+        </p>
+
+        <div v-if="!web3.isConnected" class="biometric-scan-panel">
+          <p class="micro-cap text-mute" style="text-transform: none; letter-spacing: 0;">Please connect your wallet to check KYC status.</p>
+        </div>
+
+        <div v-else-if="web3.isKycVerified" class="biometric-scan-panel success">
+          <div class="flex items-center gap-2 mb-2" style="justify-content: center;">
+            <Check :size="16" color="var(--accent-success)" />
+            <span class="micro-cap" style="color: var(--accent-success); font-weight: bold;">IDENTITY VERIFIED & WHITELISTED</span>
+          </div>
+          <p class="micro-cap text-mute" style="text-transform: none; letter-spacing: 0; font-size: 0.75rem;">Your account is fully compliant. You can now invest and transfer assets.</p>
+        </div>
+
+        <div v-else class="biometric-scan-panel">
+          <p class="micro-cap text-mute mb-4" style="text-transform: none; letter-spacing: 0;">
+            Your connected address has not yet been registered in our Compliance Registry.
+          </p>
+          <button 
+            class="btn-primary w-full"
+            :class="{ 'btn-loading': processingKyc }"
+            @click="handleMockKyc"
+            style="background: var(--accent-primary); border-color: var(--accent-primary); color: #131313;"
+          >
+            {{ processingKyc ? 'VERIFYING...' : 'VERIFY IDENTITY (KYC)' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Admin Whitelist Control -->
+      <div class="glass-panel" v-if="web3.isConnected">
+        <div class="flex items-center justify-between mb-4 border-b pb-4" style="border-color: rgba(255,255,255,0.05);">
+          <h3 class="card-title flex items-center gap-2" style="font-size: 1rem; margin: 0;">
+            <Settings :size="16" color="var(--accent-secondary)" />
+            ADMIN REGISTRY CONTROLLER
+          </h3>
+          <div class="badge" style="background: rgba(130, 170, 255, 0.1); color: var(--accent-secondary); border-radius: 0px;">
+            OWNER ONLY
+          </div>
+        </div>
+
+        <p class="body-md text-mute mb-4" style="font-size: 0.88rem; line-height: 1.5;">
+          Directly manage whitelisted addresses on the Arc Testnet compliance contract registry. Only the registry contract owner can submit updates.
+        </p>
+
+        <div class="space-y-4">
+          <div class="form-group mb-3">
+            <label class="micro-cap text-mute mb-1 d-block" style="display: block;">INVESTOR ETH ADDRESS</label>
+            <input 
+              type="text" 
+              class="w-full text-input font-mono" 
+              placeholder="0x..." 
+              v-model="whitelistAddress"
+              style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); padding: 0.6rem 0.8rem; color: #fff; width: 100%; box-sizing: border-box;"
+            />
+          </div>
+
+          <div class="flex justify-between items-center mb-4" style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="micro-cap text-mute">WHITELIST ACTION</span>
+            <div class="flex items-center gap-2" style="display: flex; gap: 0.5rem;">
+              <button 
+                type="button"
+                class="badge-mini cursor-pointer" 
+                :style="whitelistStatus ? 'background: rgba(195, 232, 141, 0.2); color: var(--accent-success); border: 1px solid var(--accent-success); cursor: pointer;' : 'background: rgba(255,255,255,0.05); color: #888; border: 1px solid transparent; cursor: pointer;'"
+                @click="whitelistStatus = true"
+              >
+                ADD TO WHITELIST
+              </button>
+              <button 
+                type="button"
+                class="badge-mini cursor-pointer" 
+                :style="!whitelistStatus ? 'background: rgba(255, 107, 107, 0.2); color: var(--accent-danger); border: 1px solid var(--accent-danger); cursor: pointer;' : 'background: rgba(255,255,255,0.05); color: #888; border: 1px solid transparent; cursor: pointer;'"
+                @click="whitelistStatus = false"
+              >
+                REVOKE / REMOVE
+              </button>
+            </div>
+          </div>
+
+          <button 
+            class="btn-primary w-full"
+            :class="{ 'btn-loading': processingWhitelist }"
+            @click="handleWhitelist"
+            style="background: var(--accent-secondary); border-color: var(--accent-secondary); color: #131313; width: 100%;"
+          >
+            {{ processingWhitelist ? 'SUBMITTING...' : 'SUBMIT REGISTRY UPDATE' }}
+          </button>
         </div>
       </div>
     </div>
