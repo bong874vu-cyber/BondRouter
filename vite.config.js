@@ -138,6 +138,22 @@ export default defineConfig({
           if (req.url.startsWith('/api/circle/')) {
             res.setHeader('Content-Type', 'application/json')
             
+            const safeError = (err) => {
+              console.error("[Circle Server Middleware Error]:", err);
+              let msg = err.message || 'Internal Server Error';
+              const keys = [
+                process.env.CIRCLE_API_KEY,
+                process.env.PRIVATE_KEY,
+                process.env.CIRCLE_ENTITY_SECRET
+              ];
+              for (const key of keys) {
+                if (key && key.length > 5) {
+                  msg = msg.split(key).join('***REDACTED_SECRET***');
+                }
+              }
+              return msg;
+            };
+
             const endpoint = req.url.replace('/api/circle', '').split('?')[0]
             
             // 1. STATUS ENDPOINT
@@ -314,7 +330,7 @@ export default defineConfig({
                   res.end(JSON.stringify({ success: true, distribution: newDistribution, wallets: store.wallets }))
                 } catch (err) {
                   res.statusCode = 400
-                  res.end(JSON.stringify({ error: err.message }))
+                  res.end(JSON.stringify({ error: safeError(err) }))
                 }
               })
               return
@@ -371,7 +387,7 @@ export default defineConfig({
                   }))
                 } catch (err) {
                   res.statusCode = 400
-                  res.end(JSON.stringify({ error: err.message }))
+                  res.end(JSON.stringify({ error: safeError(err) }))
                 }
               })
               return
@@ -402,7 +418,7 @@ export default defineConfig({
                   res.end(JSON.stringify(response))
                 } catch (err) {
                   res.statusCode = 400
-                  res.end(JSON.stringify({ error: err.message }))
+                  res.end(JSON.stringify({ error: safeError(err) }))
                 }
               })
               return
@@ -435,7 +451,7 @@ export default defineConfig({
                   res.end(JSON.stringify(response))
                 } catch (err) {
                   res.statusCode = 400
-                  res.end(JSON.stringify({ error: err.message }))
+                  res.end(JSON.stringify({ error: safeError(err) }))
                 }
               })
               return
@@ -470,7 +486,7 @@ export default defineConfig({
                   res.end(JSON.stringify(response))
                 } catch (err) {
                   res.statusCode = 400
-                  res.end(JSON.stringify({ error: err.message }))
+                  res.end(JSON.stringify({ error: safeError(err) }))
                 }
               })
               return
@@ -513,7 +529,7 @@ export default defineConfig({
                   res.end(JSON.stringify(response))
                 } catch (err) {
                   res.statusCode = 400
-                  res.end(JSON.stringify({ error: err.message }))
+                  res.end(JSON.stringify({ error: safeError(err) }))
                 }
               })
               return
@@ -569,7 +585,7 @@ export default defineConfig({
                   res.end(JSON.stringify(response))
                 } catch (err) {
                   res.statusCode = 400
-                  res.end(JSON.stringify({ error: err.message }))
+                  res.end(JSON.stringify({ error: safeError(err) }))
                 }
               })
               return
@@ -600,7 +616,7 @@ export default defineConfig({
                 }))
               } catch (err) {
                 res.statusCode = 400
-                res.end(JSON.stringify({ error: err.message }))
+                res.end(JSON.stringify({ error: safeError(err) }))
               }
               return
             }
@@ -624,7 +640,7 @@ export default defineConfig({
                   }))
                 } catch (err) {
                   res.statusCode = 400
-                  res.end(JSON.stringify({ error: err.message }))
+                  res.end(JSON.stringify({ error: safeError(err) }))
                 }
               })
               return
@@ -642,7 +658,7 @@ export default defineConfig({
                 }))
               } catch (err) {
                 res.statusCode = 500
-                res.end(JSON.stringify({ error: err.message }))
+                res.end(JSON.stringify({ error: safeError(err) }))
               }
               return
             }
@@ -664,7 +680,7 @@ export default defineConfig({
                 }))
               } catch (err) {
                 res.statusCode = 500
-                res.end(JSON.stringify({ error: err.message }))
+                res.end(JSON.stringify({ error: safeError(err) }))
               }
               return
             }
