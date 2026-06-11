@@ -4,6 +4,9 @@ An institutional-grade treasury operating system designed for corporate entities
 
 **Challenge Track Submission:** Track 3 — Best Real World Asset Tokenization on Arc
 
+* **Working MVP:** [https://bond-router.vercel.app/](https://bond-router.vercel.app/)
+* **Video Demo:** [https://drive.google.com/file/d/1e2NdjO8UwmAWXSEyVckf38BY-IwK3H2P/view?usp=sharing](https://drive.google.com/file/d/1e2NdjO8UwmAWXSEyVckf38BY-IwK3H2P/view?usp=sharing)
+
 <div align="left">
 
 [![Challenge Track - Track 3](https://img.shields.io/badge/Challenge_Track-Best_RWA_Tokenization_on_Arc-F59E0B?style=for-the-badge&logo=target&logoColor=white)](https://github.com/bong874vu-cyber/BondRouter)
