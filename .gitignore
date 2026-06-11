@@ -55,6 +55,3 @@ dist-ssr/
 lerna-debug.log*
 
 docs/
-
-# Local Hackathon Submission Docs
-PROJECT_SUBMISSION.md
