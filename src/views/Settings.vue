@@ -286,7 +286,7 @@ onMounted(() => {
               class="w-full text-input font-mono" 
               placeholder="0x..." 
               v-model="whitelistAddress"
-              style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); padding: 0.6rem 0.8rem; color: #fff; width: 100%; box-sizing: border-box;"
+              style="width: 100%; box-sizing: border-box;"
             />
           </div>
 
@@ -358,7 +358,7 @@ onMounted(() => {
                 type="number" 
                 class="text-input font-mono" 
                 v-model.number="web3.aiAgentDailyLimit"
-                style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); padding: 0.6rem 0.8rem; color: #fff; flex: 1; box-sizing: border-box; outline: none; border-radius: 0px;"
+                style="flex: 1; box-sizing: border-box;"
               />
               <button 
                 class="btn-primary" 

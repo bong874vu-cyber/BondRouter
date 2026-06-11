@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useWeb3Store } from '../stores/web3'
 import { useBondStore } from '../stores/bond'
 import { useUIStore } from '../stores/ui'
@@ -89,6 +89,19 @@ function autoMatch() {
   }
 }
 
+const isDropdownOpen = ref(false)
+const selectOption = (val) => {
+  selectedTokenId.value = val
+  isDropdownOpen.value = false
+}
+
+const clickListener = (e) => {
+  const selectEl = document.querySelector('.select-container-sec')
+  if (selectEl && !selectEl.contains(e.target)) {
+    isDropdownOpen.value = false
+  }
+}
+
 async function cancelLimitOrder(orderId) {
   const order = limitOrders.value.find(o => o.id === orderId)
   if (order) {
@@ -97,12 +110,23 @@ async function cancelLimitOrder(orderId) {
   }
 }
 
+watch(() => store.marketBonds, (newBonds) => {
+  if (newBonds.length > 0 && (!selectedTokenId.value || selectedTokenId.value === 'USDC High Yield Treasury Bond')) {
+    selectedTokenId.value = `${newBonds[0].token} (${newBonds[0].issuer.toUpperCase()})`
+  }
+}, { immediate: true })
+
 onMounted(() => {
   if (store.marketBonds.length > 0) {
-    selectedTokenId.value = store.marketBonds[0].name
+    selectedTokenId.value = `${store.marketBonds[0].token} (${store.marketBonds[0].issuer.toUpperCase()})`
   } else {
     selectedTokenId.value = 'USDC High Yield Treasury Bond'
   }
+  window.addEventListener('click', clickListener)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', clickListener)
 })
 </script>
 
@@ -136,16 +160,42 @@ onMounted(() => {
           </h3>
         </div>
 
-        <div class="form-group mb-4">
+        <div class="form-group mb-4 select-container-sec" style="position: relative;">
           <label class="micro-cap text-mute mb-1" style="display: block;">SELECT RWA POOL BOND</label>
-          <select 
-            v-model="selectedTokenId" 
-            class="calculator-input w-full"
-            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); padding: 0.6rem; color: #fff; width: 100%; box-sizing: border-box; font-size: 0.85rem;"
-          >
-            <option v-for="b in store.marketBonds" :key="b.id" :value="b.name">{{ b.name }}</option>
-            <option value="USDC High Yield Treasury Bond">USDC High Yield Treasury Bond</option>
-          </select>
+          <div class="custom-select-wrapper">
+            <button 
+              type="button"
+              class="custom-select-trigger" 
+              @click="isDropdownOpen = !isDropdownOpen"
+            >
+              <span>{{ selectedTokenId || 'Choose a bond...' }}</span>
+              <span class="chevron">{{ isDropdownOpen ? '▲' : '▼' }}</span>
+            </button>
+            <transition name="dropdown-fade">
+              <div 
+                v-if="isDropdownOpen" 
+                class="custom-select-options" 
+                style="position: absolute; top: 100%; left: 0; right: 0; z-index: 99;"
+              >
+                <div 
+                  v-for="b in store.marketBonds" 
+                  :key="b.id" 
+                  class="custom-select-option"
+                  :class="{ active: selectedTokenId === `${b.token} (${b.issuer.toUpperCase()})` }"
+                  @click="selectOption(`${b.token} (${b.issuer.toUpperCase()})`)"
+                >
+                  {{ b.token }} ({{ b.issuer.toUpperCase() }})
+                </div>
+                <div 
+                  class="custom-select-option"
+                  :class="{ active: selectedTokenId === 'USDC High Yield Treasury Bond' }"
+                  @click="selectOption('USDC High Yield Treasury Bond')"
+                >
+                  USDC High Yield Treasury Bond
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
 
         <!-- Buy/Sell Switch tabs -->
@@ -173,7 +223,7 @@ onMounted(() => {
             type="number" 
             v-model.number="quantity"
             class="text-input w-full font-mono"
-            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); padding: 0.6rem; color: #fff; width: 100%; box-sizing: border-box;"
+            style="width: 100%; box-sizing: border-box;"
           />
         </div>
 
@@ -185,7 +235,7 @@ onMounted(() => {
             step="0.01"
             v-model.number="price"
             class="text-input w-full font-mono"
-            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); padding: 0.6rem; color: #fff; width: 100%; box-sizing: border-box;"
+            style="width: 100%; box-sizing: border-box;"
           />
         </div>
 
@@ -384,5 +434,78 @@ onMounted(() => {
 .grid-two-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
+}
+
+.custom-select-trigger {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid var(--border-light) !important;
+  padding: 0.65rem 0.8rem;
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: monospace;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  border-radius: 0px !important;
+}
+
+.custom-select-trigger:hover,
+.custom-select-trigger:focus {
+  border-color: var(--accent-gold) !important;
+  box-shadow: 0 0 0 1px var(--accent-gold);
+}
+
+.custom-select-options {
+  background: #0d0e12 !important;
+  border: 1px solid var(--border-light) !important;
+  padding: 0.25rem;
+  border-radius: 0px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.custom-select-option {
+  padding: 0.6rem 0.8rem;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-family: monospace;
+  cursor: pointer;
+  border-radius: 0px !important;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  background: transparent;
+}
+
+.custom-select-option:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+}
+
+.custom-select-option.active {
+  background: #111a2e !important;
+  color: var(--accent-gold) !important;
+  font-weight: bold;
+  border-left: 2px solid var(--accent-gold) !important;
+  padding-left: 0.6rem !important;
+}
+
+.custom-select-options::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-select-options::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+.custom-select-options::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+.custom-select-options::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 </style>
