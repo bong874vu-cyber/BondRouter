@@ -251,8 +251,15 @@ A yield discovery board displaying live DeFi Llama data streams, custom risk eva
 
 ---
 
+### Tranche Details & Waterfall Simulator Modal — Structured Yield Allocation
+An interactive calculator inside the discover view allowing investors to simulate Senior/Junior yields, view historical waterfall payouts, and execute direct deposits.
+
+![Tranche Details Modal with APY waterfall simulator, Junior/Senior selectors, and historical logs](public/captures/2b_tranche_details.png)
+
+---
+
 ### Corporate Treasury Dashboard — Portfolio Positions & Growth Projections
-A comprehensive tracking dashboard showing open investments, a 12-month capital forecast chart, and the yield harvest trigger.
+A comprehensive tracking dashboard showing open investments, a 12-month capital forecast chart, the yield harvest trigger, StableFX payroll swaps, and programmatic distribution splits.
 
 ![My Treasury dashboard with portfolio positions, 12-month growth chart, and yield harvest trigger](public/captures/3_my_treasury.png)
 
@@ -265,6 +272,27 @@ A cryptographic trading desk equipped with client-side Pedersen Commitment gener
 
 ---
 
+### Secondary CLOB Desk — Fractional Bond Order Book
+A central limit order book allowing verified counterparties to trade fractionated RWA bond token positions with real-time spread analysis and order depth.
+
+![Secondary Trading desk showing order book depth, place limit order panel, and open trades list](public/captures/7_secondary_market.png)
+
+---
+
+### Governance Portal — On-Chain Capital Control
+A proposal submission and voting dashboard where stakeholders manage system parameters, APY waterfall limits, and payout rules.
+
+![Governance Portal showing active parameter proposals, voting controls, and upgrade proposal inputs](public/captures/8_governance.png)
+
+---
+
+### Compliance Portal — Regulatory Clearinghouse
+An institutional auditing dashboard displaying compliance whitelist entries, regulatory registry logs, and exportable transaction audits.
+
+![Compliance Portal displaying audit status, root hash verification, and dynamic ledger](public/captures/9_compliance.png)
+
+---
+
 ### Documentation Hub — Technical Manuals
 A multi-tab resource library hosting searchable user manuals, mathematical breakdowns, and frequently asked questions.
 
@@ -273,7 +301,7 @@ A multi-tab resource library hosting searchable user manuals, mathematical break
 ---
 
 ### Settings Suite — Infrastructure Tuning & Passkeys
-An operations control panel displaying Circle API status indicators, passkey SCA setup wizards, and the Gas Station toggle.
+An operations control panel displaying Circle API status indicators, passkey SCA setup wizards, investor compliance registries, AI agent controls, and the Gas Station toggle.
 
 ![Settings panel with Circle API status, Passkey SCA registration, and Gas Station sponsorship toggle](public/captures/6_settings.png)
 
