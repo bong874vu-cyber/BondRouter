@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { BrowserProvider, formatEther, parseEther, Contract, solidityPackedKeccak256, AbiCoder } from 'ethers'
+import { BrowserProvider, JsonRpcProvider, formatEther, parseEther, Contract, solidityPackedKeccak256, AbiCoder } from 'ethers'
 import { AppKit } from '@circle-fin/app-kit'
 import { createAdapterFromProvider } from '@circle-fin/adapter-ethers-v6'
+import { W3SSdk } from '@circle-fin/w3s-pw-web-sdk'
 import contractAddress from '../contractAddress.json'
 import { useCctpTracker } from '../composables/useCctpTracker'
 import { useSmartAccount } from '../composables/useSmartAccount'
@@ -39,14 +40,18 @@ export const useWeb3Store = defineStore('web3', () => {
   async function checkKycStatus(userAddr) {
     if (!userAddr) return false
     try {
-      if (!window.ethereum) return false
-      const provider = new BrowserProvider(window.ethereum)
+      let provider
+      if (isCircleWallet.value || !window.ethereum) {
+        provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+      } else {
+        provider = new BrowserProvider(window.ethereum)
+      }
       const registryAddr = contractAddress.ComplianceRegistry
       if (!registryAddr) {
         console.warn("ComplianceRegistry address not set in contractAddress.json")
         return false
       }
-      
+
       const ABI = ["function isWhitelisted(address investor) external view returns (bool)"]
       const contract = new Contract(registryAddr, ABI, provider)
       const status = await contract.isWhitelisted(userAddr)
@@ -83,22 +88,27 @@ export const useWeb3Store = defineStore('web3', () => {
   }
 
   async function whitelistUser(investorAddr, status) {
-    if (!isConnected.value || !window.ethereum) throw new Error("WALLET NOT CONNECTED.")
-    const provider = new BrowserProvider(window.ethereum)
-    const signer = await provider.getSigner()
-    const registryAddr = contractAddress.ComplianceRegistry
-    if (!registryAddr) throw new Error("COMPLIANCE REGISTRY ADDRESS NOT DEPLOYED.")
-    
-    const ABI = ["function whitelistInvestor(address investor, bool status) external"]
-    const contract = new Contract(registryAddr, ABI, signer)
-    
-    const tx = await contract.whitelistInvestor(investorAddr, status, { gasLimit: 200000n })
-    await tx.wait()
-    
-    if (investorAddr.toLowerCase() === address.value.toLowerCase()) {
-      isKycVerified.value = status
+    try {
+      console.log(`[Frontend] Requesting server-side whitelisting for ${investorAddr} with status ${status}...`)
+      const res = await fetch('/api/circle/verify-kyc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: investorAddr, status })
+      })
+      const data = await res.json()
+      if (data.success) {
+        console.log("[Frontend] Whitelist response:", data)
+        if (investorAddr.toLowerCase() === address.value.toLowerCase()) {
+          isKycVerified.value = status
+        }
+        return data.txHash || "0x_mocked_tx_hash"
+      } else {
+        throw new Error(data.error || "Unknown server error")
+      }
+    } catch (e) {
+      console.error("Whitelisting request failed:", e)
+      throw new Error(e.message || "WHITELISTING REQUEST FAILED.")
     }
-    return tx.hash
   }
 
   async function connect() {
@@ -112,7 +122,7 @@ export const useWeb3Store = defineStore('web3', () => {
       const accounts = await provider.send("eth_requestAccounts", [])
       if (accounts.length > 0) {
         address.value = accounts[0]
-        
+
         // Switch to Arc Testnet
         try {
           await window.ethereum.request({
@@ -144,10 +154,10 @@ export const useWeb3Store = defineStore('web3', () => {
         await checkKycStatus(accounts[0])
         const net = await provider.getNetwork()
         network.value = Number(net.chainId) === 5042002 ? 'Arc' : (net.name === 'unknown' ? `Chain ${net.chainId}` : net.name)
-        
+
         // Listeners
         window.ethereum.on('accountsChanged', async (newAccounts) => {
-          if(newAccounts.length > 0) {
+          if (newAccounts.length > 0) {
             address.value = newAccounts[0]
             await fetchBalance(new BrowserProvider(window.ethereum), newAccounts[0])
             await checkKycStatus(newAccounts[0])
@@ -189,114 +199,172 @@ export const useWeb3Store = defineStore('web3', () => {
     circleUserEmail.value = ''
   }
 
+  // Periodically fetch balance every 10 seconds if connected
+  setInterval(async () => {
+    if (isConnected.value && address.value) {
+      try {
+        const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+        await fetchBalance(provider, address.value)
+      } catch (e) {
+        // Silently ignore background query failures
+      }
+    }
+  }, 10000)
+
   async function loginWithCircleEmbeddedWallet(email) {
     try {
       error.value = ''
-      console.log(`[Embedded Wallet] Initiating signup flow for user: ${email}`)
-      
-      const signupRes = await fetch('/api/circle/user/signup', {
+      console.log(`[Embedded Wallet] Initiating session flow for user: ${email}`)
+
+      // 1. Request session from backend (checks registration & active wallets)
+      const sessionRes = await fetch('/api/circle/user/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       })
-      const signupData = await signupRes.json()
-      if (!signupData.success) throw new Error("SIGNUP FAILED")
-      const userId = signupData.userId
+      const sessionData = await sessionRes.json()
+      if (sessionRes.status >= 400) {
+        throw new Error(sessionData.error || "Failed to load Circle session")
+      }
 
-      const tokenRes = await fetch('/api/circle/user/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
-      })
-      const tokenData = await tokenRes.json()
-      if (!tokenData.success) throw new Error("TOKEN REQUEST FAILED")
-      const { userToken, encryptionKey } = tokenData
+      let walletAddress = ''
+      const { status, wallets, userToken, encryptionKey, challengeId, appId } = sessionData
 
-      const walletRes = await fetch('/api/circle/user/wallets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, userToken })
-      })
-      const walletData = await walletRes.json()
-      if (!walletData.success) throw new Error("WALLET CHALLENGE INITIATION FAILED")
-      const { challengeId } = walletData
+      if (status === 'ACTIVE' && wallets && wallets.length > 0) {
+        walletAddress = wallets[0].address
+        console.log(`[Embedded Wallet] Active wallet found: ${walletAddress}`)
+      } else if (status === 'INITIALIZING') {
+        if (!challengeId) {
+          throw new Error("No challenge ID provided for initialization")
+        }
 
-      // Client Web SDK Challenge Verification trigger
-      if (window.CircleUserSdk) {
+        // 2. Launch PIN creation challenge using the web SDK
         try {
-          const sdk = new window.CircleUserSdk()
-          sdk.setAppId("bd418d18-356a-4d7a-8b89-a2ee422fbbf8") // standard sandbox client app ID
-          sdk.setUserToken(userToken)
-          sdk.setEncryptionKey(encryptionKey)
+          const sdk = new W3SSdk({
+            appSettings: { appId: appId || "5608df20-26b9-5555-aa53-aae34dc8623d" } // dynamically passed sandbox client app ID
+          })
+          sdk.setAuthentication({
+            userToken: userToken,
+            encryptionKey: encryptionKey
+          })
 
-          console.log('[Circle Embedded Web SDK] Launching interactive challenge Pin entry...')
+          console.log('[Circle Embedded Web SDK] Establishing active device connection (getDeviceId)...')
+          await sdk.getDeviceId()
+
+          console.log('[Circle Embedded Web SDK] Launching interactive challenge PIN setup...')
           await new Promise((resolve, reject) => {
             sdk.execute(challengeId, (err, res) => {
               if (err) {
-                console.warn('[Circle Embedded Web SDK] PIN Challenge rejected or interrupted by browser popups. Continuing with fallback Address...', err)
-                resolve()
+                reject(new Error(err.message || "PIN Challenge rejected or closed"))
               } else {
-                console.log('[Circle Embedded Web SDK] Challenge verified.', res)
-                resolve()
+                console.log('[Circle Embedded Web SDK] Challenge completed successfully.', res)
+                resolve(res)
               }
             })
           })
         } catch (sdkErr) {
-          console.warn('[Circle Embedded Web SDK] SDK error during execution context. Proceeding with fallback...', sdkErr.message)
+          console.warn('[Circle Embedded Web SDK] SDK error during execution context:', sdkErr.message)
+          throw new Error(`PIN setup failed: ${sdkErr.message}`)
         }
+
+        // 3. Poll backend for active wallet creation (asynchronously created on-chain)
+        console.log('[Embedded Wallet] Polling backend for wallet activation...')
+        let activeWallet = null
+        const maxAttempts = 20
+        const delayMs = 3000
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          await new Promise(r => setTimeout(r, delayMs))
+          console.log(`[Embedded Wallet] Polling attempt ${attempt}...`)
+
+          const pollRes = await fetch('/api/circle/user/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, queryOnly: true })
+          })
+          const pollData = await pollRes.json()
+
+          if (pollData.status === 'ACTIVE' && pollData.wallets && pollData.wallets.length > 0) {
+            activeWallet = pollData.wallets[0]
+            break
+          }
+        }
+
+        if (!activeWallet) {
+          throw new Error("Wallet creation is taking longer than expected. Please close and try again.")
+        }
+
+        walletAddress = activeWallet.address
+        console.log(`[Embedded Wallet] Wallet successfully activated: ${walletAddress}`)
+      } else {
+        throw new Error("Invalid session state returned from backend")
       }
 
-      // Compute deterministic user wallet address using keccak256
-      const emailHash = solidityPackedKeccak256(["string"], [email])
-      address.value = "0x" + emailHash.substring(26, 66)
-
+      // 4. Connect wallet to frontend state
+      address.value = walletAddress
       isConnected.value = true
       isCircleWallet.value = true
       circleUserEmail.value = email
       network.value = 'Arc'
-      balance.value = '100.00' // mock credit of 100 USDC for gas-free test network
-      isKycVerified.value = true
 
-      console.log(`[Embedded Wallet] Login successful. Assigned address: ${address.value}`)
+      // Query real on-chain balance and KYC compliance status from registry
+      try {
+        const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+
+        // Fetch native USDC balance on Arc (represented in standard format)
+        const bal = await provider.getBalance(walletAddress)
+        balance.value = formatEther(bal)
+        console.log(`[Embedded Wallet] Real balance fetched for ${walletAddress}: ${balance.value} USDC`)
+
+        // Fetch compliance whitelist registry status
+        await checkKycStatus(walletAddress)
+      } catch (chainErr) {
+        console.warn("[Embedded Wallet] Failed to fetch live on-chain stats:", chainErr.message)
+        // Fallback defaults
+        balance.value = '0.00'
+        isKycVerified.value = false
+      }
+
+      console.log(`[Embedded Wallet] Onboarding completed successfully. Address: ${address.value}`)
     } catch (e) {
       console.error("Circle Embedded User-Controlled login failed:", e)
-      error.value = "CIRCLE LOGIN FAILED."
+      error.value = e.message || "CIRCLE LOGIN FAILED."
       throw e
     }
   }
-  
+
   // Real transaction sender integrating with Arc Testnet
   async function sendInvestmentTx(action, bondIdOrAsset, amountStr, destChain = 'Arc_Testnet') {
     if (!isConnected.value || !window.ethereum) throw new Error("WALLET NOT CONNECTED.")
     const provider = new BrowserProvider(window.ethereum)
     const signer = await provider.getSigner()
-    
-    // Demonstrate usage of Circle App Kit for cross-chain bridging operations
-    ;(async () => {
-      try {
-        if (!window.ethereum) return;
-        const adapter = await createAdapterFromProvider({ provider: window.ethereum });
-        const kit = new AppKit();
-        console.debug(`[Circle App Kit] Initiating CCTP Bridge to ${destChain}...`);
-        
-        const bridgeRes = await kit.bridge({
-          from: { adapter, chain: "Ethereum_Sepolia" },
-          to:   { adapter, chain: destChain },
-          amount: amountStr.toString(),
-        });
 
-        if (bridgeRes && bridgeRes.txHash) {
-          cctp.trackBridge(bridgeRes.txHash, amountStr, "Ethereum_Sepolia", "Arc")
-        } else {
-          const mockTx = "0x" + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('')
+      // Demonstrate usage of Circle App Kit for cross-chain bridging operations
+      ; (async () => {
+        try {
+          if (!window.ethereum) return;
+          const adapter = await createAdapterFromProvider({ provider: window.ethereum });
+          const kit = new AppKit();
+          console.debug(`[Circle App Kit] Initiating CCTP Bridge to ${destChain}...`);
+
+          const bridgeRes = await kit.bridge({
+            from: { adapter, chain: "Ethereum_Sepolia" },
+            to: { adapter, chain: destChain },
+            amount: amountStr.toString(),
+          });
+
+          if (bridgeRes && bridgeRes.txHash) {
+            cctp.trackBridge(bridgeRes.txHash, amountStr, "Ethereum_Sepolia", "Arc")
+          } else {
+            const mockTx = "0x" + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+            cctp.trackBridge(mockTx, amountStr, "Ethereum_Sepolia", "Arc")
+          }
+        } catch (e) {
+          console.debug("[AppKit] Bridge demo fallback:", e.message)
+          const mockTx = "0x" + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
           cctp.trackBridge(mockTx, amountStr, "Ethereum_Sepolia", "Arc")
         }
-      } catch (e) {
-        console.debug("[AppKit] Bridge demo fallback:", e.message)
-        const mockTx = "0x" + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('')
-        cctp.trackBridge(mockTx, amountStr, "Ethereum_Sepolia", "Arc")
-      }
-    })();
+      })();
 
     // Real Smart Contract interaction on Arc Testnet
     const actualAddress = contractAddress.BondRouter;
@@ -306,7 +374,7 @@ export const useWeb3Store = defineStore('web3', () => {
       "function submitConfidentialOrder(string asset, uint256 sizeHash) external payable",
       "function harvestYield(uint256 amount) external"
     ];
-    
+
     const contract = new Contract(actualAddress, ABI, signer);
 
     let tx;
@@ -316,36 +384,66 @@ export const useWeb3Store = defineStore('web3', () => {
     const txOverrides = { value: valueToSend, gasLimit: 200000n };
 
     if (action === 'INVEST') {
-       tx = await contract.invest(bondIdOrAsset, BigInt(amountStr), txOverrides);
+      tx = await contract.invest(bondIdOrAsset, BigInt(amountStr), txOverrides);
     } else if (action === 'DARK_POOL_ORDER') {
-       const sizeHash = BigInt("0x" + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join(''));
-       tx = await contract.submitConfidentialOrder(bondIdOrAsset, sizeHash, txOverrides);
+      const sizeHash = BigInt("0x" + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
+      tx = await contract.submitConfidentialOrder(bondIdOrAsset, sizeHash, txOverrides);
     }
-    
+
     // Arc has sub-second finality — return hash immediately, no need to wait for receipt
     return tx.hash
   }
 
   // Demonstrate Circle Unified Balance product and Harvest Yield
   async function harvestYieldCrossChain(amountStr) {
-    if (!isConnected.value || !window.ethereum) return;
-    
+    if (!isConnected.value) return;
+
+    if (isCircleWallet.value) {
+      console.log(`[Embedded Wallet] Relaying harvest transaction through server...`)
+      try {
+        const res = await fetch('/api/circle/user/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: address.value,
+            action: 'harvest',
+            amount: amountStr
+          })
+        })
+        const data = await res.json()
+        if (res.status >= 400) {
+          throw new Error(data.error || "Server relayer failed to execute harvest")
+        }
+        const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+        await fetchBalance(provider, address.value)
+
+        // Manual addition for UX if the real balance on-chain did not change immediately
+        const currentBal = parseFloat(balance.value) || 0
+        const amt = parseFloat(amountStr) || 0
+        balance.value = (currentBal + amt).toFixed(4)
+      } catch (e) {
+        console.error("Circle Wallet harvest failed:", e)
+      }
+      return;
+    }
+
+    if (!window.ethereum) return;
     const provider = new BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
 
-    ;(async () => {
+    ; (async () => {
       try {
         if (!window.ethereum) return;
         const adapter = await createAdapterFromProvider({ provider: window.ethereum });
         const kit = new AppKit();
-        
+
         console.debug(`[Circle Unified Balance] Aggregating yield from external chains...`);
         await kit.unifiedBalance.deposit({
           from: { adapter, chain: "Base_Sepolia" },
           amount: "1.00",
           token: "USDC",
-        }).catch(() => {});
-        
+        }).catch(() => { });
+
         console.debug(`[Circle Unified Balance] Spending yield on Arc Testnet...`);
         await kit.unifiedBalance.spend({
           from: { adapter },
@@ -355,7 +453,7 @@ export const useWeb3Store = defineStore('web3', () => {
             chain: "Arc_Testnet",
             recipientAddress: address.value,
           },
-        }).catch(() => {});
+        }).catch(() => { });
       } catch (e) {
         console.debug("[AppKit] Unified Balance demo:", e.message)
       }
@@ -364,34 +462,39 @@ export const useWeb3Store = defineStore('web3', () => {
     // Real Smart Contract interaction
     try {
       const actualAddress = contractAddress.BondRouter;
-  
+
       const ABI = ["function harvestYield(uint256 amount) external"];
       const contract = new Contract(actualAddress, ABI, signer);
-      
+
       const tx = await contract.harvestYield(BigInt(Math.floor(amountStr)));
       await tx.wait();
-    } catch(err) {
+      await fetchBalance(provider, address.value)
+    } catch (err) {
       console.error("Harvest tx failed:", err);
     }
   }
 
   async function fetchOnChainTrades() {
     try {
-      if (!window.ethereum) return null;
-      const provider = new BrowserProvider(window.ethereum)
+      let provider
+      if (window.ethereum) {
+        provider = new BrowserProvider(window.ethereum)
+      } else {
+        provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+      }
       const actualAddress = contractAddress.BondRouter;
       const ABI = [
         "event DarkPoolOrder(address indexed user, string asset, uint256 confidentialSizeHash)"
       ];
-      
+
       const contract = new Contract(actualAddress, ABI, provider);
-      
+
       const blockNumber = await provider.getBlockNumber();
-      const startBlock = Math.max(0, blockNumber - 10000); 
-      
+      const startBlock = Math.max(0, blockNumber - 10000);
+
       const filter = contract.filters.DarkPoolOrder();
       const events = await contract.queryFilter(filter, startBlock, 'latest');
-      
+
       return events.map(evt => {
         const hashSeed = Number(evt.args[2] % 100n);
         const priceVal = (90 + (hashSeed / 10)).toFixed(2);
@@ -412,21 +515,25 @@ export const useWeb3Store = defineStore('web3', () => {
   async function fetchOnChainInvestments(userAddr) {
     if (!userAddr) return [];
     try {
-      if (!window.ethereum) return [];
-      const provider = new BrowserProvider(window.ethereum)
+      let provider
+      if (window.ethereum) {
+        provider = new BrowserProvider(window.ethereum)
+      } else {
+        provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+      }
       const actualAddress = contractAddress.BondRouter;
       const ABI = [
         "event Investment(address indexed user, string bondId, uint256 amount)"
       ];
-      
+
       const contract = new Contract(actualAddress, ABI, provider);
-      
+
       const blockNumber = await provider.getBlockNumber();
-      const startBlock = Math.max(0, blockNumber - 10000); 
-      
+      const startBlock = Math.max(0, blockNumber - 10000);
+
       const filter = contract.filters.Investment(userAddr);
       const events = await contract.queryFilter(filter, startBlock, 'latest');
-      
+
       return events.map(evt => ({
         bondId: evt.args[1],
         quantity: Number(evt.args[2]),
@@ -553,37 +660,40 @@ export const useWeb3Store = defineStore('web3', () => {
   // Fetch dark pool orders directly from the contract arrays
   async function fetchDarkPoolOrders() {
     try {
-      if (!window.ethereum) return [];
-      const provider = new BrowserProvider(window.ethereum);
+      let provider
+      if (window.ethereum) {
+        provider = new BrowserProvider(window.ethereum)
+      } else {
+        provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+      }
       const actualAddress = contractAddress.BondRouter;
       const ABI = [
-        "function darkPoolOrders(uint256 index) external view returns (address user, string asset, uint256 commitmentHash, uint256 valueLocked, bool active, bool settled)",
-        "event DarkPoolOrder(address indexed user, string asset, uint256 confidentialSizeHash)"
+        "function darkPoolOrders(uint256 index) external view returns (address user, string asset, uint256 commitmentHash, uint256 valueLocked, bool active, bool settled)"
       ];
       const contract = new Contract(actualAddress, ABI, provider);
+
+      // Fetch first 50 indices in parallel to avoid slow sequential RPC calls and event query timeouts
+      const promises = []
+      for (let i = 0; i < 50; i++) {
+        promises.push(contract.darkPoolOrders(i).catch(() => null))
+      }
       
-      const blockNumber = await provider.getBlockNumber();
-      const startBlock = Math.max(0, blockNumber - 10000); 
-      const filter = contract.filters.DarkPoolOrder();
-      const events = await contract.queryFilter(filter, startBlock, 'latest');
+      const results = await Promise.all(promises)
+      const orders = []
       
-      const orders = [];
-      for (let i = 0; i < events.length; i++) {
-        try {
-          const order = await contract.darkPoolOrders(i);
-          orders.push({
-            id: i,
-            user: order.user,
-            asset: order.asset,
-            commitmentHash: order.commitmentHash.toString(),
-            valueLocked: formatEther(order.valueLocked),
-            active: order.active,
-            settled: order.settled
-          });
-        } catch (e) {
-          // Reached the end or call failed
-          break;
-        }
+      for (let i = 0; i < results.length; i++) {
+        const order = results[i]
+        if (!order) break; // First out-of-bounds index returns null (caught above), indicating end of array
+        
+        orders.push({
+          id: i,
+          user: order.user,
+          asset: order.asset,
+          commitmentHash: order.commitmentHash.toString(),
+          valueLocked: formatEther(order.valueLocked),
+          active: order.active,
+          settled: order.settled
+        })
       }
       return orders;
     } catch (e) {
@@ -594,20 +704,12 @@ export const useWeb3Store = defineStore('web3', () => {
 
   // Submit dark pool order with client-side Pedersen commitment calculation
   async function submitConfidentialOrderTx(asset, size, blindingFactor) {
-    if (!isConnected.value || !window.ethereum) throw new Error("WALLET NOT CONNECTED.")
-    const provider = new BrowserProvider(window.ethereum)
-    const signer = await provider.getSigner()
-    const actualAddress = contractAddress.BondRouter;
-
-    const ABI = [
-      "function submitConfidentialOrder(string asset, uint256 sizeHash) external payable"
-    ];
-    const contract = new Contract(actualAddress, ABI, signer);
+    if (!isConnected.value) throw new Error("WALLET NOT CONNECTED.")
 
     const g = 2n;
     const h = 3n;
     const p = 1000000007n;
-    
+
     const expMod = (base, exp, mod) => {
       let res = 1n;
       base = base % mod;
@@ -618,13 +720,45 @@ export const useWeb3Store = defineStore('web3', () => {
       }
       return res;
     };
-    
+
     const s = BigInt(size);
     const r = BigInt(blindingFactor);
     const C = (expMod(g, s, p) * expMod(h, r, p)) % p;
 
+    if (isCircleWallet.value) {
+      console.log(`[Embedded Wallet] Relaying confidential order through server...`)
+      const res = await fetch('/api/circle/user/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: address.value,
+          action: 'submitConfidentialOrder',
+          asset,
+          sizeHash: C.toString()
+        })
+      })
+      const data = await res.json()
+      if (res.status >= 400) {
+        throw new Error(data.error || "Server relayer failed to submit order")
+      }
+      return {
+        hash: data.txHash,
+        commitment: C.toString()
+      }
+    }
+
+    if (!window.ethereum) throw new Error("WALLET NOT CONNECTED.")
+    const provider = new BrowserProvider(window.ethereum)
+    const signer = await provider.getSigner()
+    const actualAddress = contractAddress.BondRouter;
+
+    const ABI = [
+      "function submitConfidentialOrder(string asset, uint256 sizeHash) external payable"
+    ];
+    const contract = new Contract(actualAddress, ABI, signer);
+
     // Send a fixed native USDC amount (escrow)
-    const valueToSend = parseEther("0.0001"); 
+    const valueToSend = parseEther("0.0001");
     const txOverrides = { value: valueToSend, gasLimit: 250000n };
 
     const tx = await contract.submitConfidentialOrder(asset, C, txOverrides);
@@ -653,7 +787,44 @@ export const useWeb3Store = defineStore('web3', () => {
 
   // Invest in a specific risk tranche (0 = Senior, 1 = Junior) of a yield pool
   async function investInTrancheTx(bondId, trancheIndex, amountStr) {
-    if (!isConnected.value || !window.ethereum) throw new Error("WALLET NOT CONNECTED.")
+    if (!isConnected.value) throw new Error("WALLET NOT CONNECTED.")
+
+    if (isCircleWallet.value) {
+      console.log(`[Embedded Wallet] Relaying investment transaction through server...`)
+      try {
+        const res = await fetch('/api/circle/user/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: address.value,
+            action: 'invest',
+            bondId,
+            trancheIndex: Number(trancheIndex),
+            amount: amountStr
+          })
+        })
+        const data = await res.json()
+        if (res.status >= 400) {
+          throw new Error(data.error || "Server relayer failed to execute transaction")
+        }
+        const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+        await fetchBalance(provider, address.value)
+
+        // Manual deduction for UX if the real balance on-chain did not change due to server relaying
+        const amt = parseFloat(amountStr) || 0
+        const currentBal = parseFloat(balance.value) || 0
+        if (currentBal >= amt) {
+          balance.value = (currentBal - amt).toFixed(4)
+        }
+
+        return data.txHash
+      } catch (e) {
+        console.error("Investment relay failed:", e.message)
+        throw e
+      }
+    }
+
+    if (!window.ethereum) throw new Error("WALLET NOT CONNECTED.")
     const provider = new BrowserProvider(window.ethereum)
     const signer = await provider.getSigner()
     const actualAddress = contractAddress.BondRouter
@@ -663,11 +834,12 @@ export const useWeb3Store = defineStore('web3', () => {
     ]
     const contract = new Contract(actualAddress, ABI, signer)
 
-    const tx = await contract.investInTranche(bondId, trancheIndex, { 
+    const tx = await contract.investInTranche(bondId, trancheIndex, {
       value: parseEther(amountStr.toString()),
-      gasLimit: 300000n 
+      gasLimit: 300000n
     })
     await tx.wait()
+    await fetchBalance(provider, address.value)
     return tx.hash
   }
 
@@ -683,8 +855,8 @@ export const useWeb3Store = defineStore('web3', () => {
     ]
     const contract = new Contract(actualAddress, ABI, signer)
 
-    const tx = await contract.distributePoolYield(bondId, parseEther(amountStr.toString()), { 
-      gasLimit: 300000n 
+    const tx = await contract.distributePoolYield(bondId, parseEther(amountStr.toString()), {
+      gasLimit: 300000n
     })
     await tx.wait()
     return tx.hash
@@ -702,8 +874,8 @@ export const useWeb3Store = defineStore('web3', () => {
     ]
     const contract = new Contract(actualAddress, ABI, signer)
 
-    const tx = await contract.claimWaterfallYield(bondId, trancheIndex, { 
-      gasLimit: 250000n 
+    const tx = await contract.claimWaterfallYield(bondId, trancheIndex, {
+      gasLimit: 250000n
     })
     await tx.wait()
     return tx.hash
@@ -721,8 +893,8 @@ export const useWeb3Store = defineStore('web3', () => {
     ]
     const contract = new Contract(actualAddress, ABI, signer)
 
-    const tx = await contract.claimAllWaterfallYield(bondIds, { 
-      gasLimit: 350000n 
+    const tx = await contract.claimAllWaterfallYield(bondIds, {
+      gasLimit: 350000n
     })
     await tx.wait()
     return tx.hash
@@ -731,8 +903,12 @@ export const useWeb3Store = defineStore('web3', () => {
   // Fetch tranche allocation and APY data from the contract
   async function fetchTrancheData(bondId) {
     try {
-      if (!window.ethereum) return null
-      const provider = new BrowserProvider(window.ethereum)
+      let provider
+      if (window.ethereum) {
+        provider = new BrowserProvider(window.ethereum)
+      } else {
+        provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+      }
       const actualAddress = contractAddress.BondRouter
 
       const ABI = [
@@ -774,8 +950,13 @@ export const useWeb3Store = defineStore('web3', () => {
   // Fetch user unclaimed waterfall yield across all tranches
   async function fetchUnclaimedWaterfallYield() {
     try {
-      if (!window.ethereum || !address.value) return "0"
-      const provider = new BrowserProvider(window.ethereum)
+      if (!address.value) return "0"
+      let provider
+      if (window.ethereum) {
+        provider = new BrowserProvider(window.ethereum)
+      } else {
+        provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+      }
       const actualAddress = contractAddress.BondRouter
       const ABI = [
         "function userUnclaimedWaterfallYield(address user) external view returns (uint256)"
@@ -833,8 +1014,8 @@ export const useWeb3Store = defineStore('web3', () => {
     }
   }
 
-  return { 
-    isConnected, address, balance, network, error, connect, disconnect, 
+  return {
+    isConnected, address, balance, network, error, connect, disconnect,
     sendInvestmentTx, harvestYieldCrossChain, fetchOnChainTrades, fetchOnChainInvestments,
     circleStatus, circleWallets, circleDistributions, circleLoading,
     fetchCircleStatus, fetchCircleWallets, distributeYieldToCircleWallets,
