@@ -2,8 +2,11 @@
 
 An institutional-grade treasury operating system designed for corporate entities to manage tokenized yield optimization, execute confidential dark-pool trades, and programmatically distribute corporate revenues. Powered by Circle's stablecoin technology suite and settled natively on the high-throughput, sub-second-finality Arc Network.
 
+**Challenge Track Submission:** Track 3 — Best Real World Asset Tokenization on Arc
+
 <div align="left">
 
+[![Challenge Track - Track 3](https://img.shields.io/badge/Challenge_Track-Best_RWA_Tokenization_on_Arc-F59E0B?style=for-the-badge&logo=target&logoColor=white)](https://github.com/bong874vu-cyber/BondRouter)
 [![Network - Arc Testnet](https://img.shields.io/badge/Network-Arc_Testnet-10B981?style=for-the-badge&logo=blockchain&logoColor=white)](https://testnet.arcscan.app/address/0x99bcb69Ed9568812Bdf4294A3585526AD61bB7D8)
 [![Gas - USDC Native](https://img.shields.io/badge/Gas-USDC_Native-3b82f6?style=for-the-badge&logo=circle&logoColor=white)](https://testnet.arcscan.app)
 [![Circle Integration](https://img.shields.io/badge/Circle-App_Kit_%26_CCTP-2775CA?style=for-the-badge&logo=circle&logoColor=white)](https://developers.circle.com)
@@ -367,7 +370,7 @@ This deployment script compiles the Solidity source using the `solc` compiler, d
 | **Target Router Contract** | [`0x99bcb69Ed9568812Bdf4294A3585526AD61bB7D8`](https://testnet.arcscan.app/address/0x99bcb69Ed9568812Bdf4294A3585526AD61bB7D8) |
 | **Native Gas Currency** | USDC (18 decimals for network gas, 6 decimals for token transfers) |
 
-*Built in connection with the Ignyte Stablecoins Commerce Stack Challenge.*
+*Built in connection with the Ignyte Stablecoins Commerce Stack Challenge — Track 3: Best Real World Asset Tokenization on Arc.*
 
 ---
 
@@ -915,4 +918,4 @@ BondRouter OS represents the future of programmatic, compliant finance. By lever
 
 ---
 
-*Built in connection with the Ignyte Stablecoins Commerce Stack Challenge.*
+*Built in connection with the Ignyte Stablecoins Commerce Stack Challenge — Track 3: Best Real World Asset Tokenization on Arc.*
