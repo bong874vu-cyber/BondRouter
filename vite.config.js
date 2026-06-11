@@ -5,6 +5,7 @@ import https from 'https'
 import fs from 'fs'
 import path from 'path'
 import dotenv from 'dotenv'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 // Load environment variables from .env
 dotenv.config()
@@ -57,7 +58,7 @@ let circleClient = null
 const apiKey = process.env.CIRCLE_API_KEY
 const entitySecret = process.env.CIRCLE_ENTITY_SECRET
 
-if (apiKey && !apiKey.startsWith('TEST_API_KEY:') && !apiKey.includes('TEST_')) {
+if (apiKey && !apiKey.startsWith('MOCK_')) {
   try {
     circleClient = initiateDeveloperControlledWalletsClient({
       apiKey: apiKey,
@@ -129,15 +130,32 @@ function generateSimulatedWallets() {
 }
 
 export default defineConfig({
+  server: {
+    port: 3000
+  },
+  define: {
+    'process.env': {},
+    'process.version': JSON.stringify('v18.0.0'),
+    'process.platform': JSON.stringify('browser'),
+    'global': 'globalThis'
+  },
   plugins: [
     vue(),
+    nodePolyfills({
+      globals: {
+        Buffer: true,
+        global: true,
+        process: true,
+      },
+      protocolImports: true,
+    }),
     {
       name: 'circle-programmable-wallets-api',
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
           if (req.url.startsWith('/api/circle/')) {
             res.setHeader('Content-Type', 'application/json')
-            
+
             const safeError = (err) => {
               console.error("[Circle Server Middleware Error]:", err);
               let msg = err.message || 'Internal Server Error';
@@ -155,7 +173,7 @@ export default defineConfig({
             };
 
             const endpoint = req.url.replace('/api/circle', '').split('?')[0]
-            
+
             // 1. STATUS ENDPOINT
             if (endpoint === '/status') {
               res.end(JSON.stringify({
@@ -169,7 +187,7 @@ export default defineConfig({
             // 2. WALLETS LISTING & PROVISIONING
             if (endpoint === '/wallets') {
               let store = loadPersistedWallets()
-              
+
               if (circleClient) {
                 // Production Mode: check or provision wallets on Circle infrastructure
                 if (!store || store.mode !== 'production') {
@@ -247,7 +265,7 @@ export default defineConfig({
                   savePersistedWallets(store)
                 }
               }
-              
+
               res.end(JSON.stringify(store))
               return
             }
@@ -260,16 +278,16 @@ export default defineConfig({
                 try {
                   const { amount } = JSON.parse(body)
                   const parsedAmount = parseFloat(amount || 0)
-                  
+
                   let store = loadPersistedWallets()
                   if (!store) {
                     store = circleClient ? { mode: 'production', wallets: [], distributions: [] } : generateSimulatedWallets()
                   }
-                  
+
                   const rVal = parsedAmount * 0.8
                   const pVal = parsedAmount * 0.1
                   const gVal = parsedAmount * 0.1
-                  
+
                   let circleTxHash = '0x' + crypto.randomBytes(32).toString('hex')
                   let executionStatus = 'SIMULATED'
 
@@ -278,7 +296,7 @@ export default defineConfig({
                     console.log('[Circle Server] Dispatched transfer transaction to Circle rails...')
                     const reservesWallet = store.wallets.find(w => w.purpose === 'RESERVES')
                     const growthWallet = store.wallets.find(w => w.purpose === 'GROWTH')
-                    
+
                     if (reservesWallet && growthWallet && parsedAmount > 0) {
                       try {
                         // Attempt transfer to Growth wallet using Developer-Controlled credentials
@@ -290,7 +308,7 @@ export default defineConfig({
                           feeLevel: 'LOW',
                           tokenId: 'USD-SEPOLIA' // USDC token reference on Sandbox Base Sepolia
                         })
-                        
+
                         if (transferRes.data && transferRes.data.txHash) {
                           circleTxHash = transferRes.data.txHash
                           executionStatus = 'SETTLED'
@@ -309,7 +327,7 @@ export default defineConfig({
                     if (w.purpose === 'PAYOUTS') w.balance = (currentBal + pVal).toFixed(2)
                     if (w.purpose === 'GROWTH') w.balance = (currentBal + gVal).toFixed(2)
                   })
-                  
+
                   const txId = 'tx_' + crypto.randomBytes(12).toString('hex')
                   const newDistribution = {
                     id: txId,
@@ -323,10 +341,10 @@ export default defineConfig({
                     circleTxHash,
                     status: executionStatus
                   }
-                  
+
                   store.distributions.unshift(newDistribution)
                   savePersistedWallets(store)
-                  
+
                   res.end(JSON.stringify({ success: true, distribution: newDistribution, wallets: store.wallets }))
                 } catch (err) {
                   res.statusCode = 400
@@ -342,11 +360,12 @@ export default defineConfig({
               req.on('data', chunk => body += chunk)
               req.on('end', async () => {
                 try {
-                  const { address } = JSON.parse(body)
+                  const { address, status } = JSON.parse(body)
                   if (!address) {
                     throw new Error("Address is required")
                   }
-                  console.log(`[Circle Server] Requesting KYC whitelist for: ${address}`)
+                  const whitelistStatus = status !== undefined ? !!status : true
+                  console.log(`[Circle Server] Requesting KYC whitelist for: ${address} (Status: ${whitelistStatus})`)
 
                   const privateKey = process.env.PRIVATE_KEY
                   const hasKey = !!privateKey
@@ -358,16 +377,16 @@ export default defineConfig({
                       const { JsonRpcProvider, Wallet, Contract } = await import('ethers')
                       const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
                       const wallet = new Wallet(privateKey, provider)
-                      
+
                       const contractAddrJson = JSON.parse(fs.readFileSync('./src/contractAddress.json', 'utf8'))
                       const registryAddress = contractAddrJson.ComplianceRegistry
 
                       if (registryAddress) {
                         const ABI = ["function whitelistInvestor(address investor, bool status) external"]
                         const contract = new Contract(registryAddress, ABI, wallet)
-                        
-                        console.log(`[Circle Server] Sending whitelist txn for ${address} to registry ${registryAddress}...`)
-                        const tx = await contract.whitelistInvestor(address, true, { gasLimit: 200000n })
+
+                        console.log(`[Circle Server] Sending whitelist txn for ${address} to registry ${registryAddress} (Status: ${whitelistStatus})...`)
+                        const tx = await contract.whitelistInvestor(address, whitelistStatus, { gasLimit: 200000n })
                         txHash = tx.hash
                         await tx.wait()
                         onChainStatus = true
@@ -378,10 +397,10 @@ export default defineConfig({
                     }
                   }
 
-                  res.end(JSON.stringify({ 
-                    success: true, 
-                    address: address, 
-                    whitelisted: true,
+                  res.end(JSON.stringify({
+                    success: true,
+                    address: address,
+                    whitelisted: whitelistStatus,
                     onChain: onChainStatus,
                     txHash: txHash
                   }))
@@ -393,100 +412,224 @@ export default defineConfig({
               return
             }
 
-            // 5. USER-CONTROLLED WALLET ONBOARDING
-            if (endpoint === '/user/signup' && req.method === 'POST') {
+            // 5. USER-CONTROLLED WALLET SESSION MANAGEMENT (REAL FLOW)
+            if (endpoint === '/user/session' && req.method === 'POST') {
               let body = ''
               req.on('data', chunk => body += chunk)
               req.on('end', async () => {
                 try {
-                  const { email } = JSON.parse(body)
-                  const userId = crypto.randomUUID()
-                  console.log(`[Circle Server] Registering User-Controlled Wallet user: ${userId} (${email || 'no-email'})`)
-
-                  let response = { success: true, userId }
-                  if (apiKey && !apiKey.startsWith('TEST_API_KEY:')) {
-                    try {
-                      const apiRes = await circleUserApiRequest('POST', '/w3s/users', { userId })
-                      response.raw = apiRes
-                    } catch (e) {
-                      console.warn('[Circle Server] Circle User registration failed (user might already exist):', e.message)
-                    }
-                  } else {
-                    console.log('[Circle Server] Simulation Mode active. Provisioning mock user ID.')
+                  const { email, queryOnly } = JSON.parse(body)
+                  if (!email) {
+                    throw new Error("Email is required")
                   }
-                  
-                  res.end(JSON.stringify(response))
-                } catch (err) {
-                  res.statusCode = 400
-                  res.end(JSON.stringify({ error: safeError(err) }))
-                }
-              })
-              return
-            }
 
-            if (endpoint === '/user/token' && req.method === 'POST') {
-              let body = ''
-              req.on('data', chunk => body += chunk)
-              req.on('end', async () => {
-                try {
-                  const { userId } = JSON.parse(body)
-                  console.log(`[Circle Server] Requesting Session Token for: ${userId}`)
+                  // Generate deterministic UUID from email to keep the user ID stable
+                  const userId = crypto.createHash('sha256')
+                    .update(email.toLowerCase())
+                    .digest('hex')
+                    .substring(0, 32)
+                    .replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5')
 
-                  let userToken = 'mock_user_token_' + crypto.randomBytes(16).toString('hex')
-                  let encryptionKey = 'mock_enc_key_' + crypto.randomBytes(16).toString('hex')
-                  let response = { success: true, userToken, encryptionKey }
+                  console.log(`[Circle Server] UCW Session for user: ${userId} (${email})`)
 
-                  if (apiKey && !apiKey.startsWith('TEST_API_KEY:')) {
+                  let userToken = ''
+                  let encryptionKey = ''
+                  let wallets = []
+
+                  if (apiKey && !apiKey.startsWith('MOCK_')) {
+                    // Try to generate session token directly first to reduce rate limit footprint
+                    let tokenData;
                     try {
-                      const apiRes = await circleUserApiRequest('POST', '/w3s/users/token', { userId })
-                      if (apiRes.data) {
-                        response.userToken = apiRes.data.userToken
-                        response.encryptionKey = apiRes.data.encryptionKey
+                      tokenData = await circleUserApiRequest('POST', '/w3s/users/token', { userId })
+                    } catch (e) {
+                      // If it fails, register the user first, then generate session token
+                      console.log(`[Circle Server] User registration required for ID: ${userId}`)
+                      try {
+                        await circleUserApiRequest('POST', '/w3s/users', { userId })
+                        console.log(`[Circle Server] Registered new UCW user: ${userId}`)
+                      } catch (regErr) {
+                        // Silently ignore if already registered
                       }
-                    } catch (e) {
-                      console.warn('[Circle Server] Circle Session Token generation failed, falling back:', e.message)
+                      tokenData = await circleUserApiRequest('POST', '/w3s/users/token', { userId })
                     }
-                  }
 
-                  res.end(JSON.stringify(response))
-                } catch (err) {
-                  res.statusCode = 400
-                  res.end(JSON.stringify({ error: safeError(err) }))
-                }
-              })
-              return
-            }
+                    if (!tokenData.data || !tokenData.data.userToken) {
+                      throw new Error(tokenData.message || "Failed to generate session token")
+                    }
+                    userToken = tokenData.data.userToken
+                    encryptionKey = tokenData.data.encryptionKey
 
-            if (endpoint === '/user/wallets' && req.method === 'POST') {
-              let body = ''
-              req.on('data', chunk => body += chunk)
-              req.on('end', async () => {
-                try {
-                  const { userId, userToken } = JSON.parse(body)
-                  console.log(`[Circle Server] Initializing user-controlled wallets creation challenge for user: ${userId}`)
+                    // 3. Fetch existing wallets (Use GET /w3s/wallets with X-User-Token)
+                    const walletsData = await circleUserApiRequest('GET', '/w3s/wallets', null, userToken)
+                    wallets = walletsData?.data?.wallets || []
 
-                  let challengeId = 'mock_challenge_' + crypto.randomBytes(16).toString('hex')
-                  let response = { success: true, challengeId }
+                    if (wallets.length > 0) {
+                      res.end(JSON.stringify({ status: 'ACTIVE', wallets, userToken, encryptionKey, appId: process.env.CIRCLE_APP_ID }))
+                      return
+                    }
 
-                  if (apiKey && !apiKey.startsWith('TEST_API_KEY:')) {
-                    try {
-                      const apiRes = await circleUserApiRequest('POST', '/w3s/user/wallets', {
+                    if (queryOnly) {
+                      res.end(JSON.stringify({ status: 'INITIALIZING', wallets: [], userToken, encryptionKey, appId: process.env.CIRCLE_APP_ID }))
+                      return
+                    }
+
+                    // 4. Request initialization (Create PIN & first wallet)
+                    console.log(`[Circle Server] No wallets found. Initializing user: ${userId}`)
+                    const initData = await circleUserApiRequest('POST', '/w3s/user/initialize', {
+                      idempotencyKey: crypto.randomUUID(),
+                      blockchains: ['ARC-TESTNET', 'ETH-SEPOLIA'],
+                      accountType: 'SCA'
+                    }, userToken)
+
+                    if (initData.data && initData.data.challengeId) {
+                      res.end(JSON.stringify({ status: 'INITIALIZING', challengeId: initData.data.challengeId, userToken, encryptionKey, appId: process.env.CIRCLE_APP_ID }))
+                      return
+                    }
+
+                    // Handle "User Already Initialized" error (Code 155106)
+                    const isAlreadyInitialized = initData?.code === 155106 ||
+                      (initData?.message && initData.message.toLowerCase().includes('already initialized'))
+
+                    if (isAlreadyInitialized) {
+                      console.log(`[Circle Server] User already initialized but has no wallets. Requesting wallet challenge...`)
+                      const walletData = await circleUserApiRequest('POST', '/w3s/user/wallets', {
                         idempotencyKey: crypto.randomUUID(),
-                        blockchains: ['BASE-SEPOLIA'],
+                        blockchains: ['ARC-TESTNET', 'ETH-SEPOLIA'],
                         accountType: 'SCA'
                       }, userToken)
-                      if (apiRes.data && apiRes.data.challengeId) {
-                        response.challengeId = apiRes.data.challengeId
-                      }
-                    } catch (e) {
-                      console.warn('[Circle Server] Circle Wallet creation challenge failed, falling back:', e.message)
-                    }
-                  }
 
-                  res.end(JSON.stringify(response))
+                      if (walletData.data && walletData.data.challengeId) {
+                        res.end(JSON.stringify({ status: 'INITIALIZING', challengeId: walletData.data.challengeId, userToken, encryptionKey, appId: process.env.CIRCLE_APP_ID }))
+                        return
+                      }
+                    }
+
+                    throw new Error(initData?.message || "Failed to initialize session")
+                  } else {
+                    throw new Error("CIRCLE_API_KEY is missing or invalid")
+                  }
                 } catch (err) {
                   res.statusCode = 400
                   res.end(JSON.stringify({ error: safeError(err) }))
+                }
+              })
+              return
+            }
+
+            // 5b. TRANSACTION RELAYER FOR EMAIL-LOGIN USERS (CIRCLE UCW)
+            if (endpoint === '/user/execute' && req.method === 'POST') {
+              let body = ''
+              req.on('data', chunk => body += chunk)
+              req.on('end', async () => {
+                try {
+                  const { userAddress, action, bondId, trancheIndex, amount, asset, sizeHash } = JSON.parse(body)
+                  if (!userAddress) {
+                    throw new Error("User address is required")
+                  }
+                  console.log(`[Circle Server Relayer] Action: ${action} for User: ${userAddress}`)
+
+                  const privateKey = process.env.PRIVATE_KEY
+                  if (!privateKey) {
+                    throw new Error("Server private key not configured")
+                  }
+
+                  const { JsonRpcProvider, Wallet, Contract, parseEther } = await import('ethers')
+                  const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+                  const devWallet = new Wallet(privateKey, provider)
+
+                  const contractAddrJson = JSON.parse(fs.readFileSync('./src/contractAddress.json', 'utf8'))
+                  const routerAddress = contractAddrJson.BondRouter
+
+                  if (!routerAddress) {
+                    throw new Error("BondRouter address not configured")
+                  }
+
+                  // Auto-whitelist devWallet on ComplianceRegistry if needed
+                  const registryAddress = contractAddrJson.ComplianceRegistry
+                  if (registryAddress) {
+                    try {
+                      const registryABI = [
+                        "function isWhitelisted(address investor) external view returns (bool)",
+                        "function whitelistInvestor(address investor, bool status) external"
+                      ]
+                      const registryContract = new Contract(registryAddress, registryABI, devWallet)
+                      const isDevWhitelisted = await registryContract.isWhitelisted(devWallet.address)
+                      if (!isDevWhitelisted) {
+                        console.log(`[Circle Server Relayer] Dev wallet ${devWallet.address} is not whitelisted. Auto-whitelisting...`)
+                        const wlTx = await registryContract.whitelistInvestor(devWallet.address, true, { gasLimit: 200000n })
+                        await wlTx.wait()
+                        console.log(`[Circle Server Relayer] Dev wallet whitelisted successfully.`)
+                      }
+                    } catch (wlErr) {
+                      console.warn("[Circle Server Relayer] Failed to auto-whitelist dev wallet:", wlErr.message)
+                    }
+                  }
+
+                  const ABI = [
+                    "function investInTranche(string memory bondId, uint8 trancheIndex) external payable",
+                    "function getTrancheTokenId(string memory bondId, uint8 trancheIndex) public pure returns (uint256)",
+                    "function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes calldata data) external",
+                    "function harvestYield(uint256 amount) external",
+                    "function submitConfidentialOrder(string memory asset, uint256 sizeHash) external payable"
+                  ]
+
+                  const contract = new Contract(routerAddress, ABI, devWallet)
+                  let txHash = ''
+
+                  if (action === 'invest') {
+                    const parsedAmount = parseEther(amount.toString())
+                    console.log(`[Circle Server Relayer] Investing ${amount} USDC in ${bondId} Tranche ${trancheIndex}...`)
+
+                    // 1. Invest using developer wallet
+                    const tx = await contract.investInTranche(bondId, Number(trancheIndex), {
+                      value: parsedAmount,
+                      gasLimit: 300000n
+                    })
+                    await tx.wait()
+                    txHash = tx.hash
+                    console.log(`[Circle Server Relayer] Investment transaction confirmed: ${txHash}`)
+
+                    // 2. Transfer the minted token to the user
+                    const tokenId = await contract.getTrancheTokenId(bondId, Number(trancheIndex))
+                    console.log(`[Circle Server Relayer] Transferring tokenId ${tokenId} to user ${userAddress}...`)
+                    const transferTx = await contract.safeTransferFrom(devWallet.address, userAddress, tokenId, parsedAmount, "0x", {
+                      gasLimit: 200000n
+                    })
+                    await transferTx.wait()
+                    console.log(`[Circle Server Relayer] Transfer confirmed: ${transferTx.hash}`)
+                  }
+                  else if (action === 'harvest') {
+                    const parsedAmount = parseEther(amount.toString())
+                    console.log(`[Circle Server Relayer] Harvesting ${amount} USDC for user ${userAddress}...`)
+                    console.log(`[Circle Server Relayer] Relayer sending direct yield payment of ${amount} USDC to user...`)
+                    const tx = await devWallet.sendTransaction({
+                      to: userAddress,
+                      value: parsedAmount,
+                      gasLimit: 100000n
+                    })
+                    await tx.wait()
+                    txHash = tx.hash
+                    console.log(`[Circle Server Relayer] Yield payment confirmed: ${txHash}`)
+                  }
+                  else if (action === 'submitConfidentialOrder') {
+                    const parsedAmount = parseEther("0.0001") // standard valueToSend
+                    console.log(`[Circle Server Relayer] Submitting confidential order for ${asset} with sizeHash ${sizeHash}...`)
+                    const tx = await contract.submitConfidentialOrder(asset, BigInt(sizeHash), {
+                      value: parsedAmount,
+                      gasLimit: 300000n
+                    })
+                    await tx.wait()
+                    txHash = tx.hash
+                    console.log(`[Circle Server Relayer] Confidential order confirmed: ${txHash}`)
+                  }
+
+                  res.end(JSON.stringify({
+                    success: true,
+                    txHash: txHash
+                  }))
+                } catch (err) {
+                  res.statusCode = 400
+                  res.end(JSON.stringify({ error: err.message || "Unknown error" }))
                 }
               })
               return
@@ -508,7 +651,7 @@ export default defineConfig({
 
                   let response = { success: true, quoteId, rate, buyAmount, expiresAt }
 
-                  if (apiKey && !apiKey.startsWith('TEST_API_KEY:')) {
+                  if (apiKey && !apiKey.startsWith('MOCK_')) {
                     try {
                       const apiRes = await circleUserApiRequest('POST', '/stablefx/quotes', {
                         sellAsset: sellAsset || 'USDC',
@@ -550,7 +693,7 @@ export default defineConfig({
 
                   let response = { success: true, tradeId, status: 'completed', rate, buyAmount: buyVal }
 
-                  if (apiKey && !apiKey.startsWith('TEST_API_KEY:')) {
+                  if (apiKey && !apiKey.startsWith('MOCK_')) {
                     try {
                       const apiRes = await circleUserApiRequest('POST', '/stablefx/trades', { quoteId })
                       if (apiRes.data) {
@@ -568,7 +711,7 @@ export default defineConfig({
                   if (store && store.wallets) {
                     const reservesWallet = store.wallets.find(w => w.purpose === 'RESERVES')
                     const payoutsWallet = store.wallets.find(w => w.purpose === 'PAYOUTS')
-                    
+
                     if (reservesWallet && payoutsWallet) {
                       const curReserves = parseFloat(reservesWallet.balance)
                       const curPayouts = parseFloat(payoutsWallet.balance)
@@ -596,10 +739,10 @@ export default defineConfig({
               try {
                 const urlObj = new URL(req.url, `http://${req.headers.host}`)
                 const address = urlObj.searchParams.get('address') || '0xdefault'
-                
-                const ratePerSecond = 0.000231 
+
+                const ratePerSecond = 0.000231
                 const now = Date.now()
-                const elapsedSeconds = 10 
+                const elapsedSeconds = 10
                 const accrued = ratePerSecond * elapsedSeconds
 
                 // Set x402 protocol headers
@@ -628,7 +771,7 @@ export default defineConfig({
                 try {
                   const { address, amount } = JSON.parse(body)
                   console.log(`[Circle Server] Settling Gateway Nanopayment for ${address}: ${amount} USDC`)
-                  
+
                   res.setHeader('X-402-Settlement-Status', 'SETTLED')
                   res.setHeader('X-402-Transaction-Id', `nano_${crypto.randomBytes(8).toString('hex')}`)
 

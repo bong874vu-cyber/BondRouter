@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # Web application & Vite simulated API middleware
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bondrouter_web
+    ports:
+      - "5173:5173"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Autonomous AI Treasury Agent background daemon
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bondrouter_agent
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/node_modules
+    entrypoint: ["node", "scripts/run_treasury_agent.js"]
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

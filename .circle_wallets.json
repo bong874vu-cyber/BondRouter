@@ -1,37 +1,50 @@
 {
-  "mode": "simulation",
-  "walletSetId": "wset_2abcc25c5fd8d223",
+  "mode": "production",
+  "walletSetId": "271c0a7e-64da-5c3a-9a53-7571c71e3b70",
   "wallets": [
     {
-      "id": "wl_reserve_69539c85cbc25038",
+      "id": "22fefc16-3b08-5f59-a9fc-dde79c24613b",
       "name": "Main Corporate Reserves",
       "purpose": "RESERVES",
-      "address": "0x356e9A3f4ab4ccd32b8fec5bdcf7ebc97b55d85e",
+      "address": "0xe3cfdc0b1d4321b559f4494611fc3f2e32f06737",
       "blockchain": "BASE-SEPOLIA",
       "token": "USDC",
-      "balance": "450000.00",
+      "balance": "0.00",
       "allocation": 80
     },
     {
-      "id": "wl_payroll_eb2e3ba688507b8b",
+      "id": "f9aac07d-91b9-5b57-bab0-73f5a1f52808",
       "name": "Global Contractor Payouts",
       "purpose": "PAYOUTS",
-      "address": "0x794b2F7b1a7b39078000cb4271615057f6fc1c67",
+      "address": "0x389898b85b76bff94018c928a9e642bd1857f049",
       "blockchain": "BASE-SEPOLIA",
       "token": "EURC",
-      "balance": "23500.00",
+      "balance": "0.00",
       "allocation": 10
     },
     {
-      "id": "wl_growth_a90e132cba7bd20e",
+      "id": "1f9e9e4a-c51a-5498-80a6-db247c4cd23c",
       "name": "Active Compounding Growth",
       "purpose": "GROWTH",
-      "address": "0x88Cc4ec7f2bcb712ec104e7a0f8c1242cc1b41f8",
+      "address": "0xec92fae15f30f65ac04aad6e27f79de1b96ad4f9",
       "blockchain": "BASE-SEPOLIA",
       "token": "USDC",
-      "balance": "12400.00",
+      "balance": "0.00",
       "allocation": 10
     }
   ],
-  "distributions": []
+  "distributions": [
+    {
+      "id": "tx_c21b24a73885cd248f53d3ac",
+      "timestamp": "2026-06-11T06:59:55.307Z",
+      "amount": "0.00",
+      "splits": {
+        "reserves": "0.00",
+        "payroll": "0.00",
+        "growth": "0.00"
+      },
+      "circleTxHash": "0xac3a93a93c50184b1d5300243982220899d5c74b1ad647f0d38b1f776e79773c",
+      "status": "SIMULATED"
+    }
+  ]
 }
