@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { 
   ShieldAlert, EyeOff, Lock, TrendingUp, CheckCircle, 
   ExternalLink, Cpu, FileSignature, Server, Terminal, 
@@ -20,6 +20,19 @@ const isSubmitting = ref(false)
 // Prover & Blinding factor states
 const generatedBlinding = ref(Math.floor(Math.random() * 899999) + 100000)
 const selectedAsset = ref('US Treasury Bill (90D) - High Speed Link')
+
+const isAssetDropdownOpen = ref(false)
+const selectAsset = (asset) => {
+  selectedAsset.value = asset
+  isAssetDropdownOpen.value = false
+}
+
+const clickListener = (e) => {
+  const selectEl = document.querySelector('.select-container-dark')
+  if (selectEl && !selectEl.contains(e.target)) {
+    isAssetDropdownOpen.value = false
+  }
+}
 
 // ZK Console Logs
 const zkLogs = ref([])
@@ -74,6 +87,11 @@ watch(() => web3.isConnected, (newVal) => {
 
 onMounted(() => {
   if (web3.isConnected) loadOrders()
+  window.addEventListener('click', clickListener)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', clickListener)
 })
 
 // Submit Order action
@@ -131,7 +149,7 @@ async function placeOrder() {
     price.value = ''
     generatedBlinding.value = Math.floor(Math.random() * 899999) + 100000
 
-    await loadOrders()
+    loadOrders().catch(err => console.error("Failed to refresh orders:", err))
   } catch (e) {
     console.error(e)
     addZkLog(`❌ [Error] Order submission failed: ${e.message}`)
@@ -219,7 +237,7 @@ async function settleOrder() {
     settleSecretSize.value = ''
     settleBlindingFactor.value = ''
 
-    await loadOrders()
+    loadOrders().catch(err => console.error("Failed to refresh orders:", err))
   } catch (e) {
     console.error(e)
     addZkLog(`❌ [Verifier] Proof verification FAILED on-chain! Transaction reverted.`)
@@ -231,6 +249,10 @@ async function settleOrder() {
     }, 5000)
   }
 }
+
+const hasZkError = computed(() => {
+  return zkLogs.value.some(log => log.includes('❌'))
+})
 
 // Helpers
 function addZkLog(msg) {
@@ -291,12 +313,40 @@ function sleep(ms) {
             </div>
           </div>
 
-          <div class="mb-4">
+          <div class="mb-4 select-container-dark" style="position: relative;">
             <label class="micro-cap block mb-2">INTEREST ASSET</label>
-            <select class="text-input" v-model="selectedAsset" style="width: 100%;">
-              <option>US Treasury Bill (90D) - High Speed Link</option>
-              <option>Corporate Savings Index (1Y) - High Speed Link</option>
-            </select>
+            <div class="custom-select-wrapper">
+              <button 
+                type="button"
+                class="custom-select-trigger" 
+                @click="isAssetDropdownOpen = !isAssetDropdownOpen"
+              >
+                <span>{{ selectedAsset || 'Select asset...' }}</span>
+                <span class="chevron">{{ isAssetDropdownOpen ? '▲' : '▼' }}</span>
+              </button>
+              <transition name="dropdown-fade">
+                <div 
+                  v-if="isAssetDropdownOpen" 
+                  class="custom-select-options" 
+                  style="position: absolute; top: 100%; left: 0; right: 0; z-index: 99;"
+                >
+                  <div 
+                    class="custom-select-option"
+                    :class="{ active: selectedAsset === 'US Treasury Bill (90D) - High Speed Link' }"
+                    @click="selectAsset('US Treasury Bill (90D) - High Speed Link')"
+                  >
+                    US Treasury Bill (90D) - High Speed Link
+                  </div>
+                  <div 
+                    class="custom-select-option"
+                    :class="{ active: selectedAsset === 'Corporate Savings Index (1Y) - High Speed Link' }"
+                    @click="selectAsset('Corporate Savings Index (1Y) - High Speed Link')"
+                  >
+                    Corporate Savings Index (1Y) - High Speed Link
+                  </div>
+                </div>
+              </transition>
+            </div>
           </div>
           
           <div class="flex-responsive-row mb-4">
@@ -538,9 +588,19 @@ function sleep(ms) {
         </div>
 
         <div class="mt-4 flex items-center justify-between">
-          <div class="flex items-center gap-2 text-xs text-mute">
-            <span class="spinner-inline" style="width: 12px; height: 12px;"></span>
-            <span>Generating zero-knowledge witnesses...</span>
+          <div class="flex items-center gap-2 text-xs">
+            <template v-if="isSubmitting || isSettling">
+              <span class="spinner-inline" style="width: 12px; height: 12px;"></span>
+              <span class="text-mute">Generating zero-knowledge witnesses...</span>
+            </template>
+            <template v-else-if="hasZkError">
+              <ShieldAlert :size="12" style="color: var(--accent-danger);" />
+              <span style="color: var(--accent-danger); font-weight: bold;">Execution failed</span>
+            </template>
+            <template v-else>
+              <ShieldCheck :size="12" style="color: var(--accent-success);" />
+              <span style="color: var(--accent-success); font-weight: bold;">Computation & validation complete</span>
+            </template>
           </div>
           <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.7rem; border-radius: 0;" @click="showLogsModal = false">
             DISMISS
@@ -618,5 +678,78 @@ function sleep(ms) {
 .tr-muted {
   opacity: 0.55;
   background: rgba(255,255,255,0.01);
+}
+
+.custom-select-trigger {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid var(--border-light) !important;
+  padding: 0.65rem 0.8rem;
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: monospace;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  border-radius: 0px !important;
+}
+
+.custom-select-trigger:hover,
+.custom-select-trigger:focus {
+  border-color: var(--accent-gold) !important;
+  box-shadow: 0 0 0 1px var(--accent-gold);
+}
+
+.custom-select-options {
+  background: #0d0e12 !important;
+  border: 1px solid var(--border-light) !important;
+  padding: 0.25rem;
+  border-radius: 0px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.custom-select-option {
+  padding: 0.6rem 0.8rem;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-family: monospace;
+  cursor: pointer;
+  border-radius: 0px !important;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  background: transparent;
+}
+
+.custom-select-option:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+}
+
+.custom-select-option.active {
+  background: #111a2e !important;
+  color: var(--accent-gold) !important;
+  font-weight: bold;
+  border-left: 2px solid var(--accent-gold) !important;
+  padding-left: 0.6rem !important;
+}
+
+.custom-select-options::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-select-options::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+.custom-select-options::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+.custom-select-options::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 </style>

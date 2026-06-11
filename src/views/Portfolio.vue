@@ -233,23 +233,27 @@ async function loadTranchePortfolio() {
 
 onMounted(async () => {
   isFetchingHoldings.value = true
-  
-  // Load Circle Developer Wallets and Status
-  await web3.fetchCircleStatus()
-  await web3.fetchCircleWallets()
+  try {
+    // Load Circle Developer Wallets and Status
+    await web3.fetchCircleStatus()
+    await web3.fetchCircleWallets()
 
-  await new Promise(resolve => setTimeout(resolve, 800)) // Visual shimmers loading delay
-  if (web3.isConnected && web3.address) {
-    const onChainInvestments = await web3.fetchOnChainInvestments(web3.address)
-    if (onChainInvestments && onChainInvestments.length > 0) {
-      onChainInvestments.forEach(item => {
-        store.recordInvestment(item.bondId, item.quantity, item.txHash)
-      })
+    await new Promise(resolve => setTimeout(resolve, 800)) // Visual shimmers loading delay
+    if (web3.isConnected && web3.address) {
+      const onChainInvestments = await web3.fetchOnChainInvestments(web3.address)
+      if (onChainInvestments && onChainInvestments.length > 0) {
+        onChainInvestments.forEach(item => {
+          store.recordInvestment(item.bondId, item.quantity, item.txHash)
+        })
+      }
+      // Load tranche positions
+      await loadTranchePortfolio()
     }
-    // Load tranche positions
-    await loadTranchePortfolio()
+  } catch (err) {
+    console.error("Error loading portfolio holdings:", err)
+  } finally {
+    isFetchingHoldings.value = false
   }
-  isFetchingHoldings.value = false
 })
 </script>
 
@@ -617,7 +621,7 @@ onMounted(async () => {
           </div>
 
           <!-- Live CCTP Cross-Chain Attestation Tracking & Recovery -->
-          <div v-if="web3.cctp.pendingBridges.value.length > 0" class="fade-in mt-6 mb-6" style="background: rgba(212, 175, 55, 0.02); border: 1px solid var(--border-light); padding: 1.5rem; border-radius: 0px; text-align: left;">
+          <div v-if="web3.cctp.pendingBridges.length > 0" class="fade-in mt-6 mb-6" style="background: rgba(212, 175, 55, 0.02); border: 1px solid var(--border-light); padding: 1.5rem; border-radius: 0px; text-align: left;">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <RefreshCw :size="16" color="var(--accent-gold)" class="spinner-inline" />
@@ -629,7 +633,7 @@ onMounted(async () => {
             </div>
 
             <div class="flex flex-col gap-4">
-              <div v-for="bridge in web3.cctp.pendingBridges.value" :key="bridge.txHash" style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 0px;">
+              <div v-for="bridge in web3.cctp.pendingBridges" :key="bridge.txHash" style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 0px;">
                 <div class="flex justify-between items-center mb-3">
                   <div>
                     <div class="body-md font-bold" style="color: var(--text-main);">

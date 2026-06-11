@@ -330,10 +330,10 @@ onMounted(async () => {
 
     <!-- TRANCHE VAULT MODAL -->
     <div v-if="selectedBond" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content fade-up" style="max-width: 900px; width: 95%; margin: 16px; height: 90vh; display: flex; flex-direction: column; justify-content: space-between;">
+      <div class="modal-content fade-up" style="max-width: 900px; width: 95%; margin: 16px; max-height: 85vh; display: flex; flex-direction: column; gap: 1rem; overflow: hidden;">
         
         <!-- Modal Header -->
-        <div class="flex justify-between items-start border-b pb-4" style="border-color: rgba(255,255,255,0.05);">
+        <div class="flex justify-between items-start border-b pb-4" style="border-color: rgba(255,255,255,0.05); flex-shrink: 0;">
           <div>
             <div class="micro-cap mb-1" style="color: var(--accent-primary);">STRUCTURED YIELD DEPOSIT</div>
             <h2 class="display-lg" style="font-size: 1.8rem; margin-bottom: 0.2rem;">{{ selectedBond.token }} — TRANCHE PORTFOLIO</h2>
@@ -345,7 +345,7 @@ onMounted(async () => {
         </div>
 
         <!-- Success view -->
-        <div v-if="txStatus === 'success'" class="flex-grow overflow-y-auto py-8 text-center flex flex-col items-center justify-center">
+        <div v-if="txStatus === 'success'" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center;" class="py-8 text-center">
           <ShieldCheck :size="64" color="var(--accent-success)" class="mb-4 pulse" />
           <h3 class="display-md text-gradient" style="color: var(--accent-success);">TRANCHE DEPOSIT COMPLETE</h3>
           <p class="body-md text-mute max-w-md mx-auto mt-2">
@@ -358,20 +358,20 @@ onMounted(async () => {
         </div>
 
         <!-- Pending view -->
-        <div v-else-if="txStatus === 'pending'" class="flex-grow flex flex-col items-center justify-center text-center">
+        <div v-else-if="txStatus === 'pending'" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;" class="text-center">
           <div class="spinner mb-4"></div>
           <h3 class="micro-cap">BROADCASTING TO ARC TESTNET</h3>
           <p class="body-sm text-mute mt-2">Signing tranche investment contract allocation. Please approve the prompt in your wallet.</p>
         </div>
 
         <!-- Main Structured view -->
-        <div v-else class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+        <div v-else class="modal-body-grid">
           
           <!-- Column 1: Tranche Selector & Deposit -->
           <div class="space-y-4">
             <h4 class="micro-cap border-b pb-2" style="border-color: rgba(255,255,255,0.05); color: var(--accent-secondary);">TRANCHE VAULT SELECTOR</h4>
             
-            <div class="grid grid-cols-2 gap-4">
+            <div class="tranche-cards-grid">
               <!-- Senior Tranche Card -->
               <div 
                 class="glass-panel cursor-pointer flex flex-col justify-between p-4" 
@@ -531,5 +531,34 @@ onMounted(async () => {
 
 .bg-black-20 {
   background: rgba(0, 0, 0, 0.2);
+}
+
+.modal-body-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1.5rem;
+  padding: 1rem 0;
+  max-height: calc(85vh - 100px);
+  overflow-y: auto;
+  min-height: 0;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.modal-body-grid::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.tranche-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .modal-body-grid {
+    grid-template-columns: 1fr;
+    max-height: none;
+  }
 }
 </style>
