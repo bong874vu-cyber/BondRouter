@@ -1,19 +1,23 @@
 <script setup>
 import { onMounted, computed, ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useBondStore } from './stores/bond'
 import { useWeb3Store } from './stores/web3'
 import Toast from './components/Toast.vue'
 import WalletModal from './components/WalletModal.vue'
 import SocialLoginModal from './components/SocialLoginModal.vue'
+import ConnectedWalletModal from './components/ConnectedWalletModal.vue'
 import TreasuryAssistant from './components/TreasuryAssistant.vue'
 import { useNumberCounter } from './composables/useCounter'
 import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen, Settings, Landmark } from 'lucide-vue-next'
 
 const store = useBondStore()
 const web3 = useWeb3Store()
+const route = useRoute()
 const isWalletModalOpen = ref(false)
 const isSocialLoginModalOpen = ref(false)
+const isConnectedWalletModalOpen = ref(false)
+const activeDropdown = ref(null)
 
 const displayBalance = useNumberCounter(computed(() => parseFloat(web3.balance) || 0))
 
@@ -27,12 +31,17 @@ onMounted(() => {
 })
 
 const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
+
+function openSocialLogin() {
+  console.log('[App] openSocialLogin event received, setting isSocialLoginModalOpen = true')
+  isSocialLoginModalOpen.value = true
+}
 </script>
 
 <template>
   <div class="bg-blobs"></div>
   <header class="app-header">
-    <div class="flex items-center" style="gap: 3rem;">
+    <div class="flex items-center header-left">
       <RouterLink to="/" class="logo">
         <Layers :size="24" color="var(--accent-primary)" />
         BOND ROUTER
@@ -44,28 +53,50 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
         <RouterLink to="/portfolio">
           <div class="flex items-center gap-2"><ArrowRightLeft :size="16" /> My Treasury</div>
         </RouterLink>
-        <RouterLink to="/darkpool">
-          <div class="flex items-center gap-2"><ShieldCheck :size="16" /> Shielded Trading</div>
-        </RouterLink>
-        <RouterLink to="/secondary">
-          <div class="flex items-center gap-2"><ArrowRightLeft :size="16" /> Secondary Trade</div>
-        </RouterLink>
-        <RouterLink to="/governance">
-          <div class="flex items-center gap-2"><Landmark :size="16" /> Governance</div>
-        </RouterLink>
-        <RouterLink to="/compliance">
-          <div class="flex items-center gap-2"><ShieldCheck :size="16" /> Compliance</div>
-        </RouterLink>
-        <RouterLink to="/docs">
-          <div class="flex items-center gap-2"><BookOpen :size="16" /> Documentation</div>
-        </RouterLink>
-        <RouterLink to="/settings">
-          <div class="flex items-center gap-2"><Settings :size="16" /> Settings</div>
-        </RouterLink>
+
+        <!-- Dropdown Trading -->
+        <div class="nav-dropdown" @mouseenter="activeDropdown = 'trading'" @mouseleave="activeDropdown = null">
+          <button class="nav-dropdown-trigger" :class="{ active: ['/darkpool', '/secondary'].includes(route.path) }">
+            <ShieldCheck :size="16" /> Trading <span class="chevron">▼</span>
+          </button>
+          <transition name="dropdown-fade">
+            <div v-if="activeDropdown === 'trading'" class="dropdown-menu">
+              <RouterLink to="/darkpool" class="dropdown-item">
+                <ShieldCheck :size="14" /> Shielded Trading
+              </RouterLink>
+              <RouterLink to="/secondary" class="dropdown-item">
+                <ArrowRightLeft :size="14" /> Secondary Trade
+              </RouterLink>
+            </div>
+          </transition>
+        </div>
+
+        <!-- Dropdown Management -->
+        <div class="nav-dropdown" @mouseenter="activeDropdown = 'mgmt'" @mouseleave="activeDropdown = null">
+          <button class="nav-dropdown-trigger" :class="{ active: ['/governance', '/compliance', '/settings', '/docs'].includes(route.path) }">
+            <Settings :size="16" /> Management <span class="chevron">▼</span>
+          </button>
+          <transition name="dropdown-fade">
+            <div v-if="activeDropdown === 'mgmt'" class="dropdown-menu">
+              <RouterLink to="/governance" class="dropdown-item">
+                <Landmark :size="14" /> Governance
+              </RouterLink>
+              <RouterLink to="/compliance" class="dropdown-item">
+                <ShieldCheck :size="14" /> Compliance
+              </RouterLink>
+              <RouterLink to="/docs" class="dropdown-item">
+                <BookOpen :size="14" /> Documentation
+              </RouterLink>
+              <RouterLink to="/settings" class="dropdown-item">
+                <Settings :size="14" /> Settings
+              </RouterLink>
+            </div>
+          </transition>
+        </div>
       </nav>
     </div>
     
-    <div class="flex items-center" style="gap: 1.5rem;">
+    <div class="flex items-center header-right">
       <div v-if="web3.error" class="micro-cap" style="color: var(--accent-danger);">{{ web3.error }}</div>
       <div v-if="web3.isConnected" class="header-status-container">
         <div class="micro-cap text-mute header-status-label" style="color: var(--accent-success); font-weight: 700;">SECURE HIGH-SPEED LINK ACTIVE</div>
@@ -75,12 +106,12 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
       <button v-if="!web3.isConnected" class="btn-primary" @click="isWalletModalOpen = true">
         <Wallet :size="18" /> Connect Account
       </button>
-      <button v-else-if="web3.isCircleWallet" class="btn-glass" @click="web3.disconnect()" style="border-color: var(--accent-gold); color: var(--accent-gold); display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem;">
+      <button v-else-if="web3.isCircleWallet" class="btn-glass" @click="isConnectedWalletModalOpen = true" style="border-color: var(--accent-gold); color: var(--accent-gold); display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem;">
         <ShieldCheck :size="16" color="var(--accent-gold)" />
         <span style="font-weight: 700;">{{ web3.circleUserEmail }}</span>
         <span style="opacity: 0.6; font-size: 0.75rem;">({{ truncate(web3.address) }})</span>
       </button>
-      <button v-else class="btn-glass" @click="web3.disconnect()">
+      <button v-else class="btn-glass" @click="isConnectedWalletModalOpen = true">
         <Wallet :size="18" color="var(--accent-primary)" />
         {{ truncate(web3.address) }}
       </button>
@@ -115,8 +146,17 @@ const truncate = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : ''
   </div>
 
   <Toast />
-  <WalletModal :isOpen="isWalletModalOpen" @close="isWalletModalOpen = false" @open-social-login="isSocialLoginModalOpen = true" />
+  <WalletModal :isOpen="isWalletModalOpen" @close="isWalletModalOpen = false" @open-social-login="openSocialLogin" />
   <SocialLoginModal :isOpen="isSocialLoginModalOpen" @close="isSocialLoginModalOpen = false" />
+  <ConnectedWalletModal 
+    :isOpen="isConnectedWalletModalOpen" 
+    :email="web3.circleUserEmail"
+    :address="web3.address"
+    :balance="web3.balance"
+    :isCircleWallet="web3.isCircleWallet"
+    @close="isConnectedWalletModalOpen = false"
+    @disconnect="web3.disconnect"
+  />
   <TreasuryAssistant />
 </template>
 

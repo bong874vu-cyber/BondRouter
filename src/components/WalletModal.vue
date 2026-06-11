@@ -13,6 +13,12 @@ const web3 = useWeb3Store()
 const activeOption = ref('metamask') // 'metamask', 'coinbase', 'rainbow', 'walletconnect'
 const isConnecting = ref(false)
 
+function triggerSocialLogin() {
+  console.log('[WalletModal] triggerSocialLogin called, emitting open-social-login and close')
+  emit('open-social-login')
+  emit('close')
+}
+
 async function connectWallet(walletName) {
   activeOption.value = walletName
   isConnecting.value = true
@@ -47,7 +53,7 @@ async function connectWallet(walletName) {
             <div 
               class="wallet-option"
               style="border: 1px solid var(--accent-gold); background: rgba(212, 175, 55, 0.05);"
-              @click="emit('open-social-login'); emit('close');"
+              @click.stop="triggerSocialLogin"
             >
               <div class="flex items-center gap-3">
                 <div class="wallet-icon-frame" style="background: rgba(212, 175, 55, 0.2); display: flex; align-items: center; justify-content: center;">

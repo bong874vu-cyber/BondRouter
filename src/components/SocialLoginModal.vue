@@ -1,8 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useWeb3Store } from '../stores/web3'
 import { useUIStore } from '../stores/ui'
-import { X, Mail, ShieldCheck, Lock, Chrome, Apple, KeyRound } from 'lucide-vue-next'
+import { X, Mail, ShieldCheck, Lock, KeyRound } from 'lucide-vue-next'
 
 const props = defineProps({
   isOpen: Boolean
@@ -13,68 +13,25 @@ const web3 = useWeb3Store()
 const ui = useUIStore()
 
 const email = ref('')
-const otpCode = ref('')
-const setupPin = ref('')
-const confirmPin = ref('')
 
-const step = ref(1) // 1: Email Input, 2: OTP Entry, 3: PIN Configuration, 4: Provisioning Loader
+const step = ref(1) // 1: Email Input, 2: Provisioning Loader
 const isLoading = ref(false)
-const otpSentMessage = ref('')
 
-async function handleSendOtp() {
+onMounted(() => {
+  console.log('[SocialLoginModal] Component mounted, isOpen state:', props.isOpen)
+})
+
+watch(() => props.isOpen, (newVal) => {
+  console.log('[SocialLoginModal] isOpen property updated to:', newVal)
+})
+
+async function handleEmailLogin() {
   if (!email.value || !email.value.includes('@')) {
     ui.addToast("PLEASE ENTER A VALID BUSINESS EMAIL ADDRESS.", "error")
     return
   }
   isLoading.value = true
-  try {
-    // Call server to trigger signup and user token generation
-    const signupRes = await fetch('/api/circle/user/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.value })
-    })
-    const signupData = await signupRes.json()
-    if (!signupData.success) throw new Error("SIGNUP FAILED")
-
-    otpSentMessage.value = `Verification OTP sent to ${email.value}`
-    step.value = 2 // Move to OTP verification
-    ui.addToast("OTP CODE DISPATCHED SUCCESSFULLY!", "success")
-  } catch (e) {
-    ui.addToast("FAILED TO DISPATCH VERIFICATION CODE.", "error")
-  } finally {
-    isLoading.value = false
-  }
-}
-
-async function handleVerifyOtp() {
-  if (otpCode.value.length < 6) {
-    ui.addToast("PLEASE ENTER THE 6-digit VERIFICATION CODE.", "error")
-    return
-  }
-  isLoading.value = true
-  try {
-    // Proceed to secure Pin Configuration
-    await new Promise(resolve => setTimeout(resolve, 800))
-    step.value = 3
-  } catch (e) {
-    ui.addToast("INVALID CODE. PLEASE CHECK AND TRY AGAIN.", "error")
-  } finally {
-    isLoading.value = false
-  }
-}
-
-async function handleConfigurePin() {
-  if (setupPin.value.length < 6) {
-    ui.addToast("PIN MUST BE AT LEAST 6 DIGITS.", "error")
-    return
-  }
-  if (setupPin.value !== confirmPin.value) {
-    ui.addToast("PIN MISMATCH. PLEASE CONFIRM MATCHING DIGITS.", "error")
-    return
-  }
-  isLoading.value = true
-  step.value = 4 // Provisioning Loader
+  step.value = 2 // Provisioning Loader
   
   try {
     // Trigger the real Circle User-Controlled SDK and Server challenge flow
@@ -83,25 +40,7 @@ async function handleConfigurePin() {
     ui.addToast("CIRCLE EMBEDDED WALLET PROVISIONED ON BASE SEPOLIA/ARC!", "success")
     emit('close')
   } catch (e) {
-    ui.addToast("AUTHENTICATION AND PIN SETUP FAILED.", "error")
-    step.value = 3
-  } finally {
-    isLoading.value = false
-  }
-}
-
-async function handleSocialLogin(platform) {
-  isLoading.value = true
-  step.value = 4
-  try {
-    // Mocking OAuth redirect & social onboarding
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    const mockEmail = `corp.${platform.toLowerCase()}@bondrouter.com`
-    await web3.loginWithCircleEmbeddedWallet(mockEmail)
-    ui.addToast(`LOGGED IN SUCCESSFULLY VIA ${platform.toUpperCase()}`, "success")
-    emit('close')
-  } catch (e) {
-    ui.addToast(`SOCIAL ONBOARDING VIA ${platform} FAILED.`, "error")
+    ui.addToast(e.message || "AUTHENTICATION AND PIN SETUP FAILED.", "error")
     step.value = 1
   } finally {
     isLoading.value = false
@@ -123,38 +62,23 @@ async function handleSocialLogin(platform) {
         </button>
       </div>
 
-      <!-- Step 1: Input Email & Socials -->
+      <!-- Step 1: Input Email -->
       <div v-if="step === 1">
-        <h3 class="display-lg mb-2" style="font-size: 1.5rem;">Access Corporate Treasury</h3>
-        <p class="body-md text-mute mb-6" style="font-size: 0.88rem; line-height: 1.4;">
-          Connect your interest account instantly. Log in with Google, Apple, or your corporate email.
+        <h3 class="display-lg" style="font-size: 1.5rem; margin-bottom: 0.75rem;">Access Corporate Treasury</h3>
+        <p class="body-md text-mute" style="font-size: 0.88rem; line-height: 1.4; margin-bottom: 1.5rem;">
+          Connect your interest account instantly. Log in securely with your corporate email.
         </p>
 
-        <!-- Social Connect Buttons -->
-        <div class="flex flex-col gap-3 mb-6">
-          <button class="social-btn" @click="handleSocialLogin('Google')">
-            <Chrome :size="16" style="margin-right: 0.75rem;" />
-            Continue with Google
-          </button>
-          <button class="social-btn" @click="handleSocialLogin('Apple')">
-            <Apple :size="16" style="margin-right: 0.75rem;" />
-            Continue with Apple
-          </button>
-        </div>
-
-        <div class="divider mb-6">
-          <span>OR CONTINUE WITH EMAIL</span>
-        </div>
-
         <!-- Email input -->
-        <div class="input-group mb-6">
-          <label class="micro-cap mb-2 block text-left">BUSINESS EMAIL</label>
-          <div style="position: relative;">
-            <Mail :size="14" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); opacity: 0.5;" />
+        <div class="input-group" style="margin-bottom: 1.5rem;">
+          <label class="micro-cap" style="margin-bottom: 0.5rem; display: block;">BUSINESS EMAIL</label>
+          <div style="position: relative; width: 100%;">
+            <Mail :size="14" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); opacity: 0.5; z-index: 10;" />
             <input 
               type="email" 
               placeholder="name@company.com" 
               v-model="email"
+              class="text-input"
               style="padding-left: 2.75rem;"
             />
           </div>
@@ -162,90 +86,22 @@ async function handleSocialLogin(platform) {
 
         <button 
           class="btn-primary w-full" 
-          @click="handleSendOtp" 
+          @click="handleEmailLogin" 
           :disabled="isLoading"
         >
           <span v-if="isLoading" class="spinner-inline mr-2"></span>
-          GET VERIFICATION OTP
+          CONNECT WALLET
         </button>
       </div>
 
-      <!-- Step 2: OTP Verification -->
-      <div v-else-if="step === 2">
-        <h3 class="display-lg mb-2" style="font-size: 1.5rem;">Verify Your Identity</h3>
-        <p class="body-md text-mute mb-6" style="font-size: 0.88rem; line-height: 1.4;">
-          {{ otpSentMessage }}. Enter the 6-digit code below to confirm possession.
-        </p>
-
-        <div class="input-group mb-6">
-          <label class="micro-cap mb-2 block text-left">OTP CODE</label>
-          <input 
-            type="text" 
-            placeholder="0 0 0 0 0 0" 
-            v-model="otpCode" 
-            maxlength="6"
-            style="text-align: center; letter-spacing: 0.8em; font-weight: 700; font-size: 1.25rem;"
-          />
-        </div>
-
-        <div class="flex gap-4">
-          <button class="btn-secondary w-full" @click="step = 1">BACK</button>
-          <button class="btn-primary w-full" @click="handleVerifyOtp" :disabled="isLoading">
-            <span v-if="isLoading" class="spinner-inline mr-2"></span>
-            VERIFY CODE
-          </button>
-        </div>
-      </div>
-
-      <!-- Step 3: Secure Pin Configuration -->
-      <div v-else-if="step === 3">
-        <h3 class="display-lg mb-2" style="font-size: 1.5rem;">Configure Wallet PIN</h3>
-        <p class="body-md text-mute mb-6" style="font-size: 0.88rem; line-height: 1.4;">
-          Establish a secure 6-digit PIN. Your PIN acts as a non-custodial cryptographic key required to sign trades and distribute yield.
-        </p>
-
-        <div class="input-group mb-4">
-          <label class="micro-cap mb-2 block text-left">CHOOSE 6-DIGIT PIN</label>
-          <div style="position: relative;">
-            <Lock :size="14" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); opacity: 0.5;" />
-            <input 
-              type="password" 
-              placeholder="******" 
-              v-model="setupPin"
-              maxlength="6"
-              style="padding-left: 2.75rem; text-align: center; letter-spacing: 0.5em;"
-            />
-          </div>
-        </div>
-
-        <div class="input-group mb-6">
-          <label class="micro-cap mb-2 block text-left">CONFIRM SECURE PIN</label>
-          <div style="position: relative;">
-            <Lock :size="14" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); opacity: 0.5;" />
-            <input 
-              type="password" 
-              placeholder="******" 
-              v-model="confirmPin"
-              maxlength="6"
-              style="padding-left: 2.75rem; text-align: center; letter-spacing: 0.5em;"
-            />
-          </div>
-        </div>
-
-        <button class="btn-primary w-full" @click="handleConfigurePin" :disabled="isLoading">
-          <span v-if="isLoading" class="spinner-inline mr-2"></span>
-          CONFIRM & CREATE WALLET
-        </button>
-      </div>
-
-      <!-- Step 4: Loading & Provisioning -->
-      <div v-else-if="step === 4" style="padding: 3rem 0; text-align: center;">
+      <!-- Step 2: Loading & Provisioning -->
+      <div v-else-if="step === 2" style="padding: 3rem 0; text-align: center;">
         <div class="pulse-icon mb-6">
           <ShieldCheck :size="48" color="var(--accent-primary)" />
         </div>
-        <h3 class="display-lg mb-2" style="font-size: 1.35rem;">Creating Secure Embedded Wallet</h3>
+        <h3 class="display-lg mb-2" style="font-size: 1.35rem;">Authenticating Secure Wallet</h3>
         <p class="body-md text-mute" style="font-size: 0.88rem; max-width: 360px; margin: 0 auto; line-height: 1.5;">
-          Interacting with Circle sandbox API to register non-custodial credentials. Please authorize standard passkey frames if prompted by browser...
+          Establishing session credentials with Circle Sandbox API. If you are a new user, a secure PIN challenge pop-up will launch shortly...
         </p>
         <div class="spinner" style="margin: 2rem auto 0 auto; width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.05); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
       </div>
@@ -342,5 +198,17 @@ async function handleSocialLogin(platform) {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.input-group label {
+  text-align: left;
+  display: block;
 }
 </style>
