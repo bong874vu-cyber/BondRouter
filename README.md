@@ -103,37 +103,83 @@ When an order is submitted, the frontend displays a five-stage cryptographic syn
 The diagram below details the data orchestration layer and asset pathways across the client interface, Circle's APIs, and the Arc Testnet ledger.
 
 ```mermaid
-graph TD
-    classDef client fill:#18181b,stroke:#c5a880,stroke-width:2px,color:#fff;
-    classDef circle fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff;
-    classDef ledger fill:#0f172a,stroke:#10b981,stroke-width:2px,color:#fff;
+graph TB
+    %% Styling Classes
+    classDef client fill:#18181b,stroke:#f59e0b,stroke-width:2px,color:#fff;
+    classDef middleware fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef chain fill:#0f172a,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef external fill:#27272a,stroke:#71717a,stroke-width:2px,color:#fff;
 
-    subgraph Client ["Client Interface Layer (Vue 3.5)"]
-        A["Dashboard & Portfolio Charts"]:::client
-        B["Passkey SCA Signer"]:::client
-        C["OTC Cryptographic Shield"]:::client
+    subgraph UI ["Client Application Layer (Vue 3.5 / Vite)"]
+        Dash["Dashboard & Analytics (Chart.js)"]:::client
+        Discover["Discover Yield Panel (DeFi Llama)"]:::client
+        Treasury["Treasury Portfolio Manager"]:::client
+        DarkPool["Confidential OTC Desk (Dark Pool UI)"]:::client
+        ClobDesk["Secondary CLOB Bond Desk"]:::client
+        GovPortal["Governance Control Desk"]:::client
+        CompPortal["Compliance Auditor Portal"]:::client
+        AppKit["Circle App-Kit SDK Integration"]:::client
+        ZkProver["Client-Side Cryptographic Engine (BigInt / WebCrypto)"]:::client
     end
 
-    subgraph Platform ["Circle API Stack Orchestration"]
-        D["CCTP Bridge SDK"]:::circle
-        E["Unified Balance Manager"]:::circle
-        F["DCW Waterfall Engine"]:::circle
-        G["Gas Station Relay"]:::circle
+    subgraph Mid ["Backend & Middleware Services"]
+        Proxy["Vite Node.js Proxy Relayer"]:::middleware
+        CircleW3S["Circle Web3 Services (W3S API)"]:::middleware
+        SponsorRelay["Gas Station Sponsor Relay"]:::middleware
+        StableFX["StableFX API (EURC Swaps)"]:::middleware
+        SupaDB[("Supabase / PostgreSQL DB (Analytics Cache)")]:::middleware
     end
 
-    subgraph Settlement ["Arc Settlement & Escrow Layer"]
-        H["BondRouter.sol Contract"]:::ledger
-        I["Dark Pool Escrow Book"]:::ledger
-        J["Gas Sponsorship Ledger"]:::ledger
+    subgraph ArcChain ["On-Chain Settlement Layer (Arc L1 Testnet)"]
+        SCA["ERC-4337 Smart Account (Passkey Bio-Signer)"]:::chain
+        RouterContract["BondRouter.sol (Core Router & Tranches)"]:::chain
+        VerifierContract["ZKVerifier.sol (Schnorr Proof Verifier)"]:::chain
+        RegistryContract["ComplianceRegistry.sol (On-Chain Whitelist)"]:::chain
+        ClobContract["SecondaryCLOB.sol (Order Book)"]:::chain
+        GovContract["BondGovernance.sol (DAO Parameter Voting)"]:::chain
     end
 
-    A -->|Invest / Deposit| D
-    B -->|Smart Wallet Identity| E
-    C -->|Pedersen Commitment Hash| H
-    D -->|Burn/Mint Native USDC| H
-    F -->|Programmatic Yield Splitting| H
-    G -->|Sponsored Meta-Transactions| J
-    H -->|Lock Escrows| I
+    subgraph Ext ["External Ecosystem"]
+        DefiLlama["DefiLlama API (Live Pool Yields)"]:::external
+        SepoliaChain["Sepolia Testnet (Source USDC Bridge)"]:::external
+        CircleAttest["Circle Attestation API (CCTP)"]:::external
+    end
+
+    %% Flow Connections
+    Dash -->|Query Analytics| SupaDB
+    Discover -->|Fetch Live Pools| DefiLlama
+    AppKit -->|Social Sign-In / Passkey| SCA
+    AppKit -->|Initiate Bridge| SepoliaChain
+    SepoliaChain -->|Burn & Attest| CircleAttest
+    CircleAttest -->|Mint Native USDC| RouterContract
+
+    %% Investment & Waterfall Flows
+    Treasury -->|Invest / Deposit| RouterContract
+    RouterContract -->|Accrue Yield / State Logs| SupaDB
+    Proxy -->|Cron Trigger: Harvest & Split| CircleW3S
+    CircleW3S -->|Distribute Reserves 80 Percent| RouterContract
+    CircleW3S -->|Distribute Growth 10 Percent| RouterContract
+    CircleW3S -->|Payroll EURC Swap 10 Percent| StableFX
+
+    %% Dark Pool Cryptography Flows
+    DarkPool -->|Generate Pedersen Blinding| ZkProver
+    ZkProver -->|Submit Commitment Hash & Escrow USDC| RouterContract
+    RouterContract -->|Lock Escrow Book| VerifierContract
+    DarkPool -->|Generate Schnorr Proof| ZkProver
+    ZkProver -->|Settle Order with Proof| RouterContract
+    RouterContract -->|Verify Proof| VerifierContract
+    VerifierContract -->|Valid Proof: Release Escrow| SCA
+
+    %% Secondary Market & Governance
+    ClobDesk -->|Trade Fractional ERC-1155| ClobContract
+    GovPortal -->|DAO Param Upgrades| GovContract
+    GovContract -->|Update Parameters| RouterContract
+
+    %% Compliance Verification Flow
+    ClobContract -->|Verify Transfer Compliance| RegistryContract
+    RouterContract -->|Verify Investor KYC Status| RegistryContract
+    CompPortal -->|Update KYC Whitelist| RegistryContract
+    CompPortal -->|Query Investor Logs| SupaDB
 ```
 
 ---
