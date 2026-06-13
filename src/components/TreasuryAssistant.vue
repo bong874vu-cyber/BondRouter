@@ -106,6 +106,42 @@ function handleStartTour() {
 function handleCloseTour() {
   ui.endOnboarding()
 }
+
+// Proactive AI Treasury Advisory State
+const unclaimedWaterfallYield = ref("0.00")
+
+async function loadAdvisoryMetrics() {
+  if (web3.isConnected && web3.address) {
+    try {
+      const yieldAmt = await web3.fetchUnclaimedWaterfallYield()
+      unclaimedWaterfallYield.value = Number(yieldAmt).toFixed(4)
+    } catch (e) {
+      console.warn("Failed to load metrics for advisory feed:", e)
+    }
+  }
+}
+
+watch(() => web3.isConnected, (connected) => {
+  if (connected) loadAdvisoryMetrics()
+})
+
+onMounted(() => {
+  if (web3.isConnected) loadAdvisoryMetrics()
+})
+
+function executeAdvice(type) {
+  if (type === 'sca') {
+    router.push('/portfolio')
+    ui.addToast('SCROLL TO THE SMART CONTRACT ACCOUNT PANEL TO UPGRADE.', 'info')
+  } else if (type === 'claim') {
+    router.push('/portfolio')
+    ui.addToast('SCROLL TO STRUCTURED TRANCHE HOLDINGS PANEL AND CLICK CLAIM.', 'info')
+  } else if (type === 'allocate') {
+    router.push('/discover')
+    ui.addToast('SELECT A POOL TO INVEST IN STRUCTURED YIELD TRANCHES.', 'info')
+  }
+  ui.toggleAssistant()
+}
 </script>
 
 <template>
@@ -208,6 +244,44 @@ function handleCloseTour() {
           </div>
           <h5 class="context-heading">{{ contextHelp.title }}</h5>
           <p class="context-desc">{{ contextHelp.concept }}</p>
+        </div>
+
+        <!-- PROACTIVE AI TREASURY ADVISOR RECOMMENDATION -->
+        <div class="context-section advisory-box p-3" style="background: rgba(212, 175, 55, 0.05); border: 1px dashed var(--accent-gold); border-radius: 0px;">
+          <div class="flex items-center gap-2 mb-2">
+            <Sparkles :size="14" color="var(--accent-gold)" class="pulse" />
+            <span class="section-label" style="color: var(--accent-gold); font-weight: bold;">PROACTIVE AI ADVISOR</span>
+          </div>
+          
+          <div v-if="!web3.smartAccount.isScaDeployed" class="space-y-2">
+            <div style="font-weight: bold; color: #fff; font-size: 0.75rem;">OPTIMIZE PORTFOLIO FEES</div>
+            <p style="color: var(--text-muted); font-size: 0.72rem; line-height: 1.35; margin-bottom: 0.5rem; text-transform: none;">
+              You are currently using standard network fees. Upgrade to SCA to enable 100% sponsored gasless transactions.
+            </p>
+            <button @click="executeAdvice('sca')" class="btn-tour-primary" style="font-size: 0.65rem; padding: 4px 10px; border-radius: 0px; cursor: pointer; border: none; font-weight: bold;">
+              UPGRADE WALLET NOW
+            </button>
+          </div>
+          
+          <div v-else-if="Number(unclaimedWaterfallYield) > 0" class="space-y-2">
+            <div style="font-weight: bold; color: var(--accent-success); font-size: 0.75rem;">ACCUMULATED REWARDS DETECTED</div>
+            <p style="color: var(--text-muted); font-size: 0.72rem; line-height: 1.35; margin-bottom: 0.5rem; text-transform: none;">
+              Waterfall yield of +{{ unclaimedWaterfallYield }} USDC is ready for claiming and automated secure routing.
+            </p>
+            <button @click="executeAdvice('claim')" class="btn-tour-primary" style="font-size: 0.65rem; padding: 4px 10px; border-radius: 0px; cursor: pointer; background: var(--accent-success); border: none; font-weight: bold; color: #000;">
+              CLAIM YIELD
+            </button>
+          </div>
+          
+          <div v-else class="space-y-2">
+            <div style="font-weight: bold; color: var(--accent-secondary); font-size: 0.75rem;">YIELD SPREADS WIDENING</div>
+            <p style="color: var(--text-muted); font-size: 0.72rem; line-height: 1.35; margin-bottom: 0.5rem; text-transform: none;">
+              Senior tranche spreads are widening by 1.2%. Consider allocating 10% from lower-yield Cash reserves.
+            </p>
+            <button @click="executeAdvice('allocate')" class="btn-tour-primary" style="font-size: 0.65rem; padding: 4px 10px; border-radius: 0px; cursor: pointer; background: var(--accent-secondary); border: none; font-weight: bold; color: #000;">
+              REBALANCE PORTFOLIO
+            </button>
+          </div>
         </div>
 
         <!-- Non-Technical Analogy Layer -->
