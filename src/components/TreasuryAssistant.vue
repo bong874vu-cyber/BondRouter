@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch, ref } from 'vue'
+import { computed, watch, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUIStore } from '../stores/ui'
 import { useWeb3Store } from '../stores/web3'
