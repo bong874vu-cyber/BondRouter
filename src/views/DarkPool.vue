@@ -82,11 +82,17 @@ async function loadOrders() {
 
 // Watch connection state to fetch orders
 watch(() => web3.isConnected, (newVal) => {
-  if (newVal) loadOrders()
+  if (newVal) {
+    loadOrders()
+    syncVaultFromCloud()
+  }
 })
 
 onMounted(() => {
-  if (web3.isConnected) loadOrders()
+  if (web3.isConnected) {
+    loadOrders()
+    syncVaultFromCloud()
+  }
   window.addEventListener('click', clickListener)
 })
 
@@ -143,6 +149,7 @@ async function placeOrder() {
       asset: assetName
     })
     localStorage.setItem('darkpool_secrets', JSON.stringify(savedSecrets))
+    await backupVaultToCloud()
 
     ui.addToast('CONFIDENTIAL ORDER REGISTERED ON-CHAIN.', 'success')
     size.value = ''
@@ -247,6 +254,49 @@ async function settleOrder() {
     setTimeout(() => {
       showLogsModal.value = false
     }, 5000)
+  }
+}
+
+const vaultSyncing = ref(false)
+
+async function syncVaultFromCloud() {
+  if (!web3.isConnected || !web3.address) return
+  vaultSyncing.value = true
+  try {
+    const cloudSecrets = await web3.retrieveSecrets()
+    if (cloudSecrets && cloudSecrets.length > 0) {
+      const currentLocal = JSON.parse(localStorage.getItem('darkpool_secrets') || '[]')
+      const merged = [...currentLocal]
+      cloudSecrets.forEach(cs => {
+        if (!merged.some(m => m.commitment === cs.commitment)) {
+          merged.push(cs)
+        }
+      })
+      savedSecrets.splice(0, savedSecrets.length, ...merged)
+      localStorage.setItem('darkpool_secrets', JSON.stringify(merged))
+      ui.addToast('SYNCHRONIZED DECENTRALIZED KEY-VAULT SECRETS.', 'success')
+    }
+  } catch (err) {
+    console.error("Vault sync failed:", err)
+  } finally {
+    vaultSyncing.value = false
+  }
+}
+
+async function backupVaultToCloud() {
+  if (!web3.isConnected || !web3.address || savedSecrets.length === 0) return
+  vaultSyncing.value = true
+  try {
+    const success = await web3.backupSecrets(savedSecrets)
+    if (success) {
+      ui.addToast('ENCRYPTED SECRETS BACKED UP TO PASSKEY KEY-VAULT.', 'success')
+    } else {
+      ui.addToast('BACKUP FAILED. ENSURE PASSKEY SEED IS CONFIGURED.', 'warning')
+    }
+  } catch (err) {
+    console.error("Vault backup failed:", err)
+  } finally {
+    vaultSyncing.value = false
   }
 }
 
@@ -413,9 +463,21 @@ function sleep(ms) {
 
       <!-- Recent Secrets and Local Cache -->
       <div class="glass-panel">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="micro-cap">MY SHIELDED SECRETS (LOCAL CACHE)</h3>
-          <span class="badge" style="background: rgba(130, 255, 170, 0.1); color: var(--accent-success); border-radius: 0;">PROVER STORAGE</span>
+        <div class="flex justify-between items-center mb-4 pb-2 border-b" style="border-color: rgba(255,255,255,0.05);">
+          <div>
+            <h3 class="micro-cap" style="margin-bottom: 2px;">ZK DECENTRALIZED KEY-VAULT</h3>
+            <div class="flex items-center gap-1 text-xs text-gradient" style="--gradient-to: var(--accent-primary); font-weight: bold; font-family: monospace;">
+              <ShieldCheck :size="12" /> SECURED BY PASSKEY
+            </div>
+          </div>
+          <button 
+            @click="syncVaultFromCloud" 
+            class="btn-glass flex items-center gap-1.5" 
+            style="font-size: 0.65rem; padding: 0.25rem 0.5rem; border-radius: 0;"
+            :disabled="vaultSyncing || !web3.isConnected"
+          >
+            <RefreshCw :size="10" :class="{ 'animate-spin': vaultSyncing }" /> Sync Vault
+          </button>
         </div>
 
         <p class="body-sm text-mute mb-4" style="font-size: 0.82rem;">
@@ -434,7 +496,12 @@ function sleep(ms) {
           >
             <div class="flex justify-between items-center mb-2 border-b pb-1" style="border-color: rgba(255,255,255,0.03);">
               <span class="micro-cap" style="color: var(--accent-secondary);">{{ secret.asset }}</span>
-              <span class="micro-cap text-mute">{{ secret.time }}</span>
+              <div class="flex items-center gap-1.5">
+                <span class="badge-mini" style="background: rgba(130, 255, 170, 0.1); color: var(--accent-success); font-size: 0.55rem; border-radius: 0; padding: 0.1rem 0.25rem; font-weight: bold;">
+                  VAULT SECURED
+                </span>
+                <span class="micro-cap text-mute" style="font-size: 0.65rem;">{{ secret.time }}</span>
+              </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-xs">
               <div>

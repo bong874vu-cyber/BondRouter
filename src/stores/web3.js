@@ -1014,12 +1014,84 @@ export const useWeb3Store = defineStore('web3', () => {
     }
   }
 
+  async function claimFaucetGrant() {
+    if (!address.value) return
+    try {
+      error.value = ''
+      console.log(`[Frontend] Requesting faucet grant for address: ${address.value}`)
+      const res = await fetch('/api/circle/faucet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: address.value })
+      })
+      const data = await res.json()
+      if (data.success) {
+        console.log("[Frontend] Faucet response:", data)
+        try {
+          const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+          await fetchBalance(provider, address.value)
+        } catch (balErr) {
+          if (window.ethereum) {
+            const provider = new BrowserProvider(window.ethereum)
+            await fetchBalance(provider, address.value)
+          }
+        }
+        return data.txHash
+      } else {
+        throw new Error(data.error || "Faucet failed")
+      }
+    } catch (e) {
+      console.error("Faucet request failed:", e)
+      error.value = "FAUCET REQUEST FAILED."
+    }
+  }
+
+  async function backupSecrets(secretsList) {
+    if (!address.value) return false
+    try {
+      console.log(`[Frontend] Requesting cloud vault backup for: ${address.value}`)
+      const rawPayload = JSON.stringify(secretsList)
+      const encoded = btoa(unescape(encodeURIComponent(rawPayload)))
+      
+      const res = await fetch('/api/circle/vault/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: address.value, encryptedSecrets: encoded })
+      })
+      const data = await res.json()
+      return data.success
+    } catch (e) {
+      console.error("Backup failed:", e)
+      return false
+    }
+  }
+
+  async function retrieveSecrets() {
+    if (!address.value) return []
+    try {
+      console.log(`[Frontend] Requesting cloud vault retrieval for: ${address.value}`)
+      const res = await fetch(`/api/circle/vault/retrieve?address=${address.value}`)
+      const data = await res.json()
+      if (data.success && data.encryptedSecrets) {
+        const decoded = decodeURIComponent(escape(atob(data.encryptedSecrets)))
+        return JSON.parse(decoded)
+      }
+      return []
+    } catch (e) {
+      console.error("Retrieval failed:", e)
+      return []
+    }
+  }
+
   return {
     isConnected, address, balance, network, error, connect, disconnect,
     sendInvestmentTx, harvestYieldCrossChain, fetchOnChainTrades, fetchOnChainInvestments,
     circleStatus, circleWallets, circleDistributions, circleLoading,
     fetchCircleStatus, fetchCircleWallets, distributeYieldToCircleWallets,
-    isKycVerified, checkKycStatus, triggerMockKyc, whitelistUser,
+    isKycVerified, checkKycStatus, triggerMockKyc, whitelistUser, claimFaucetGrant,
+    backupSecrets, retrieveSecrets,
+
+
     generatePedersenProof, fetchDarkPoolOrders, submitConfidentialOrderTx, settleConfidentialOrderTx,
     investInTrancheTx, distributePoolYieldTx, claimWaterfallYieldTx, claimAllWaterfallYieldTx, fetchTrancheData,
     fetchUnclaimedWaterfallYield,

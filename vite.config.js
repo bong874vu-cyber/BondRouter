@@ -806,6 +806,118 @@ export default defineConfig({
               return
             }
 
+            // 8b. ARC FAUCET FOR MOCK GRANTS
+            if (endpoint === '/faucet' && req.method === 'POST') {
+              let body = ''
+              req.on('data', chunk => body += chunk)
+              req.on('end', async () => {
+                try {
+                  const { address } = JSON.parse(body)
+                  if (!address) {
+                    throw new Error("Address is required")
+                  }
+                  console.log(`[Circle Server Faucet] Supplying mock grant for address: ${address}`)
+                  
+                  const privateKey = process.env.PRIVATE_KEY
+                  let txHash = '0x_mocked_faucet_tx_hash'
+                  let success = false
+                  
+                  if (privateKey) {
+                    try {
+                      const { JsonRpcProvider, Wallet, parseEther } = await import('ethers')
+                      const provider = new JsonRpcProvider('https://rpc.testnet.arc.network')
+                      const wallet = new Wallet(privateKey, provider)
+                      
+                      console.log(`[Circle Server Faucet] Sending 10 USDC (gas native) to ${address}...`)
+                      const tx = await wallet.sendTransaction({
+                        to: address,
+                        value: parseEther("10.0"),
+                        gasLimit: 100000n
+                      })
+                      txHash = tx.hash
+                      await tx.wait()
+                      success = true
+                      console.log(`[Circle Server Faucet] Faucet transaction confirmed: ${txHash}`)
+                    } catch (txErr) {
+                      console.warn("[Circle Server Faucet] Real transfer failed, falling back to mock:", txErr.message)
+                    }
+                  }
+                  
+                  res.end(JSON.stringify({
+                    success: true,
+                    txHash: txHash,
+                    funded: success
+                  }))
+                } catch (err) {
+                  res.statusCode = 400
+                  res.end(JSON.stringify({ error: safeError(err) }))
+                }
+              })
+              return
+            }
+
+            // 8c. ENCRYPTED KEY-VAULT BACKUP
+            if (endpoint === '/vault/backup' && req.method === 'POST') {
+              let body = ''
+              req.on('data', chunk => body += chunk)
+              req.on('end', async () => {
+                try {
+                  const { address, encryptedSecrets } = JSON.parse(body)
+                  if (!address || !encryptedSecrets) {
+                    throw new Error("Address and encrypted secrets are required")
+                  }
+                  console.log(`[Circle Server Vault] Saving backup for investor: ${address}`)
+                  
+                  const VAULT_FILE = path.resolve(__dirname, '.circle_secrets_vault.json')
+                  let vault = {}
+                  if (fs.existsSync(VAULT_FILE)) {
+                    try {
+                      vault = JSON.parse(fs.readFileSync(VAULT_FILE, 'utf8'))
+                    } catch (e) {
+                      console.error('[Circle Server Vault] Failed to parse vault file:', e)
+                    }
+                  }
+                  vault[address.toLowerCase()] = encryptedSecrets
+                  fs.writeFileSync(VAULT_FILE, JSON.stringify(vault, null, 2), 'utf8')
+                  
+                  res.end(JSON.stringify({ success: true }))
+                } catch (err) {
+                  res.statusCode = 400
+                  res.end(JSON.stringify({ error: safeError(err) }))
+                }
+              })
+              return
+            }
+
+            if (endpoint === '/vault/retrieve' && req.method === 'GET') {
+              try {
+                const urlObj = new URL(req.url, `http://${req.headers.host}`)
+                const address = urlObj.searchParams.get('address')
+                if (!address) {
+                  throw new Error("Address parameter is required")
+                }
+                console.log(`[Circle Server Vault] Retrieving backup for investor: ${address}`)
+                
+                const VAULT_FILE = path.resolve(__dirname, '.circle_secrets_vault.json')
+                let encryptedSecrets = ''
+                if (fs.existsSync(VAULT_FILE)) {
+                  try {
+                    const vault = JSON.parse(fs.readFileSync(VAULT_FILE, 'utf8'))
+                    encryptedSecrets = vault[address.toLowerCase()] || ''
+                  } catch (e) {
+                    console.error('[Circle Server Vault] Failed to read vault file:', e)
+                  }
+                }
+                res.end(JSON.stringify({ success: true, encryptedSecrets }))
+              } catch (err) {
+                res.statusCode = 400
+                res.end(JSON.stringify({ error: safeError(err) }))
+              }
+              return
+            }
+
+
+
             // 9. COMPLIANCE & TELEMETRY AUDIT REPORT EXPORTER
             if (endpoint === '/compliance/report' && req.method === 'GET') {
               try {
