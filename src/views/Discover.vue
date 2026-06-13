@@ -24,8 +24,35 @@ const txErrorMsg = ref('')
 
 // Simulator States
 const simulatedYield = ref('1000')
+const simulatedLossRate = ref('0')
 const simulatorChartRef = ref(null)
 let chartInstance = null
+
+const seniorPrincipalRemainingPercent = computed(() => {
+  const lossRate = Number(simulatedLossRate.value) || 0
+  const seniorDeposited = Number(trancheData.value.senior.totalDeposited) || 10000
+  const juniorDeposited = Number(trancheData.value.junior.totalDeposited) || 4000
+  const totalDeposited = seniorDeposited + juniorDeposited
+  
+  const portfolioLoss = totalDeposited * (lossRate / 100)
+  const juniorRemaining = juniorDeposited - portfolioLoss
+  if (juniorRemaining >= 0) return 100
+  
+  const seniorRemaining = seniorDeposited + juniorRemaining
+  return Math.max(0, Math.round((seniorRemaining / seniorDeposited) * 100))
+})
+
+const juniorPrincipalRemainingPercent = computed(() => {
+  const lossRate = Number(simulatedLossRate.value) || 0
+  const juniorDeposited = Number(trancheData.value.junior.totalDeposited) || 4000
+  const seniorDeposited = Number(trancheData.value.senior.totalDeposited) || 10000
+  const totalDeposited = seniorDeposited + juniorDeposited
+  
+  const portfolioLoss = totalDeposited * (lossRate / 100)
+  const juniorRemaining = juniorDeposited - portfolioLoss
+  return Math.max(0, Math.round((juniorRemaining / juniorDeposited) * 100))
+})
+
 
 // On-chain tranche details
 const trancheData = ref({
@@ -98,16 +125,33 @@ async function queryPayoutLogs(bondId) {
   }
 }
 
-// Calculate simulation priority divisions and update Chart.js
+// Calculate simulation priority divisions and update Chart.js with stress-testing inputs
 function runWaterfallSimulation() {
   if (!selectedBond.value) return
   
+  const lossRate = Number(simulatedLossRate.value) || 0
   const totalSimYield = Number(simulatedYield.value) || 0
-  const seniorDeposited = Number(trancheData.value.senior.totalDeposited) || 10000 // default dummy if pool empty
-  const seniorAPY = trancheData.value.senior.targetAPY / 100 // e.g. 0.05
   
-  // Senior Priority Return target
-  const seniorPriority = seniorDeposited * seniorAPY
+  const seniorDeposited = Number(trancheData.value.senior.totalDeposited) || 10000
+  const juniorDeposited = Number(trancheData.value.junior.totalDeposited) || 4000
+  const totalDeposited = seniorDeposited + juniorDeposited
+  
+  // Simulated portfolio value after losses
+  const portfolioLoss = totalDeposited * (lossRate / 100)
+  
+  // Junior absorbs losses first
+  let juniorPrincipalRemaining = juniorDeposited - portfolioLoss
+  let seniorPrincipalRemaining = seniorDeposited
+  
+  if (juniorPrincipalRemaining < 0) {
+    // Junior wiped out, Senior starts absorbing loss
+    seniorPrincipalRemaining = seniorDeposited + juniorPrincipalRemaining
+    juniorPrincipalRemaining = 0
+  }
+  
+  // Calculate priority yield cascade on remaining performing assets
+  const seniorAPY = trancheData.value.senior.targetAPY / 100
+  const seniorPriority = seniorPrincipalRemaining * seniorAPY
   
   let seniorShare = 0
   let juniorShare = 0
@@ -117,7 +161,12 @@ function runWaterfallSimulation() {
     juniorShare = 0
   } else {
     seniorShare = seniorPriority
-    juniorShare = totalSimYield - seniorPriority
+    juniorShare = Math.max(0, totalSimYield - seniorPriority)
+  }
+  
+  // If junior principal is 0, junior gets no yield
+  if (juniorPrincipalRemaining === 0) {
+    juniorShare = 0
   }
 
   // Render/Update Chart
@@ -129,7 +178,7 @@ function runWaterfallSimulation() {
     chartInstance = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: ['Total Pool Yield', 'Senior Share (Priority)', 'Junior Share (Residual)'],
+        labels: ['Total Yield Pool', 'Senior Return (Priority)', 'Junior Return (Surplus)'],
         datasets: [{
           data: [totalSimYield, seniorShare, juniorShare],
           backgroundColor: [
@@ -479,19 +528,53 @@ onMounted(async () => {
               </p>
 
               <!-- Simulator controls -->
-              <div class="flex items-center gap-4 mt-4 bg-black-20 p-3 border border-border-light">
-                <div style="flex-grow:1;">
-                  <label class="micro-cap block mb-1">SIMULATED PORTFOLIO YIELD INFLOW (USDC)</label>
-                  <input type="range" min="100" max="10000" step="100" class="w-full cursor-pointer" v-model="simulatedYield" @input="runWaterfallSimulation" />
+              <div class="space-y-3 mt-4">
+                <div class="flex items-center gap-4 bg-black-20 p-3 border border-border-light">
+                  <div style="flex-grow:1;">
+                    <label class="micro-cap block mb-1">SIMULATED PORTFOLIO YIELD INFLOW (USDC)</label>
+                    <input type="range" min="100" max="10000" step="100" class="w-full cursor-pointer" v-model="simulatedYield" @input="runWaterfallSimulation" />
+                  </div>
+                  <div class="font-mono text-white text-md font-bold" style="min-width: 90px; text-align: right;">
+                    ${{ simulatedYield }} USDC
+                  </div>
                 </div>
-                <div class="font-mono text-white text-md font-bold" style="min-width: 90px; text-align: right;">
-                  ${{ simulatedYield }} USDC
+
+                <div class="flex items-center gap-4 bg-black-20 p-3 border border-border-light">
+                  <div style="flex-grow:1;">
+                    <label class="micro-cap block mb-1" style="color: var(--accent-danger);">SIMULATED DEFAULT/LOSS STRESS RATE (%)</label>
+                    <input type="range" min="0" max="50" step="1" class="w-full cursor-pointer" v-model="simulatedLossRate" @input="runWaterfallSimulation" />
+                  </div>
+                  <div class="font-mono text-white text-md font-bold" style="min-width: 90px; text-align: right; color: var(--accent-danger);">
+                    {{ simulatedLossRate }}% LOSS
+                  </div>
                 </div>
               </div>
             </div>
 
+            <!-- Dynamic Stress Stats -->
+            <div class="grid grid-cols-2 gap-2 my-1">
+              <div class="p-2 border border-border-light text-center" style="background: rgba(0,0,0,0.15); border-radius: 0;">
+                <span class="micro-cap block text-mute mb-1">Senior Principal</span>
+                <span 
+                  class="font-mono text-xs font-bold"
+                  :style="{ color: seniorPrincipalRemainingPercent === 100 ? 'var(--accent-success)' : 'var(--accent-danger)' }"
+                >
+                  {{ seniorPrincipalRemainingPercent }}% SAFE
+                </span>
+              </div>
+              <div class="p-2 border border-border-light text-center" style="background: rgba(0,0,0,0.15); border-radius: 0;">
+                <span class="micro-cap block text-mute mb-1">Junior Cushion Buffer</span>
+                <span 
+                  class="font-mono text-xs font-bold"
+                  :style="{ color: juniorPrincipalRemainingPercent > 0 ? 'var(--accent-secondary)' : 'var(--text-mute)' }"
+                >
+                  {{ juniorPrincipalRemainingPercent }}% ACTIVE
+                </span>
+              </div>
+            </div>
+
             <!-- Chart Container -->
-            <div style="height: 180px; position: relative;" class="my-2">
+            <div style="height: 150px; position: relative;" class="my-2">
               <canvas ref="simulatorChartRef"></canvas>
             </div>
 
