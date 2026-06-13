@@ -346,6 +346,9 @@ onMounted(async () => {
                 <span v-if="web3.smartAccount.isScaDeployed" class="badge" style="background: rgba(130, 255, 170, 0.15); color: var(--accent-success); font-size: 0.65rem; border-radius: 0px;">
                   SPONSORED BY PAYMASTER
                 </span>
+                <span v-if="web3.smartAccount.isScaDeployed" class="badge" style="background: rgba(130, 170, 255, 0.15); color: var(--accent-secondary); font-size: 0.65rem; border-radius: 0px; font-weight: bold;">
+                  ⚡ $0.00 GAS FEES
+                </span>
                 <span v-else class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); font-size: 0.65rem; border-radius: 0px;">
                   ERC-4337 UPGRADE AVAILABLE
                 </span>
@@ -633,8 +636,8 @@ onMounted(async () => {
             </div>
 
             <div class="flex flex-col gap-4">
-              <div v-for="bridge in web3.cctp.pendingBridges" :key="bridge.txHash" style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 0px;">
-                <div class="flex justify-between items-center mb-3">
+              <div v-for="bridge in web3.cctp.pendingBridges" :key="bridge.txHash" style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 0px;">
+                <div class="flex justify-between items-center mb-4 pb-2 border-b" style="border-color: rgba(255,255,255,0.03);">
                   <div>
                     <div class="body-md font-bold" style="color: var(--text-main);">
                       Bridge {{ bridge.amount }} USDC
@@ -652,15 +655,82 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- Custom Progress Bar -->
-                <div style="background: rgba(255,255,255,0.05); height: 6px; width: 100%; border-radius: 3px; overflow: hidden; margin-bottom: 0.75rem; position: relative;">
+                <!-- Custom Step-by-Step Flow Pipeline -->
+                <div class="flex items-center justify-between mt-4 mb-6 relative" style="padding: 0 10px;">
+                  <!-- Connector line background -->
+                  <div style="position: absolute; top: 12px; left: 24px; right: 24px; height: 2px; background: rgba(255,255,255,0.05); z-index: 1;"></div>
+                  <!-- Active connector line progress -->
                   <div 
-                    style="height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-success)); transition: width 0.5s ease;"
-                    :style="{ width: bridge.progress + '%' }"
+                    style="position: absolute; top: 12px; left: 24px; height: 2px; background: linear-gradient(90deg, var(--accent-gold), var(--accent-success)); z-index: 2; transition: width 0.5s ease;"
+                    :style="{ width: (bridge.progress <= 20 ? '0%' : bridge.progress <= 40 ? '33%' : bridge.progress <= 80 ? '66%' : '100%') }"
                   ></div>
+
+                  <!-- Step 1: Burn -->
+                  <div class="flex flex-col items-center" style="position: relative; z-index: 3;">
+                    <div 
+                      class="flex items-center justify-center font-mono font-bold" 
+                      style="width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid; font-size: 0.65rem;"
+                      :style="{ 
+                        background: bridge.progress >= 20 ? 'var(--accent-gold)' : 'var(--bg-dark)',
+                        borderColor: bridge.progress >= 20 ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)',
+                        color: bridge.progress >= 20 ? '#131313' : '#fff'
+                      }"
+                    >
+                      1
+                    </div>
+                    <span class="micro-cap mt-1.5 text-center" style="font-size: 0.55rem; font-weight: bold; width: 60px;">BURN CONFIRMED</span>
+                  </div>
+
+                  <!-- Step 2: Attestation Polling -->
+                  <div class="flex flex-col items-center" style="position: relative; z-index: 3;">
+                    <div 
+                      class="flex items-center justify-center font-mono font-bold" 
+                      style="width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid; font-size: 0.65rem;"
+                      :style="{ 
+                        background: bridge.progress >= 40 ? 'var(--accent-primary)' : 'var(--bg-dark)',
+                        borderColor: bridge.progress >= 40 ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
+                        color: bridge.progress >= 40 ? '#131313' : '#fff'
+                      }"
+                    >
+                      2
+                    </div>
+                    <span class="micro-cap mt-1.5 text-center" style="font-size: 0.55rem; font-weight: bold; width: 60px;">CIRCLE SIGNATURE</span>
+                  </div>
+
+                  <!-- Step 3: Attestation Ready -->
+                  <div class="flex flex-col items-center" style="position: relative; z-index: 3;">
+                    <div 
+                      class="flex items-center justify-center font-mono font-bold" 
+                      style="width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid; font-size: 0.65rem;"
+                      :style="{ 
+                        background: bridge.progress >= 80 ? 'var(--accent-success)' : 'var(--bg-dark)',
+                        borderColor: bridge.progress >= 80 ? 'var(--accent-success)' : 'rgba(255,255,255,0.1)',
+                        color: bridge.progress >= 80 ? '#131313' : '#fff'
+                      }"
+                    >
+                      3
+                    </div>
+                    <span class="micro-cap mt-1.5 text-center" style="font-size: 0.55rem; font-weight: bold; width: 60px;">PROOF READY</span>
+                  </div>
+
+                  <!-- Step 4: Mint -->
+                  <div class="flex flex-col items-center" style="position: relative; z-index: 3;">
+                    <div 
+                      class="flex items-center justify-center font-mono font-bold" 
+                      style="width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid; font-size: 0.65rem;"
+                      :style="{ 
+                        background: bridge.status === 'completed' ? 'var(--accent-success)' : 'var(--bg-dark)',
+                        borderColor: bridge.status === 'completed' ? 'var(--accent-success)' : 'rgba(255,255,255,0.1)',
+                        color: bridge.status === 'completed' ? '#131313' : '#fff'
+                      }"
+                    >
+                      4
+                    </div>
+                    <span class="micro-cap mt-1.5 text-center" style="font-size: 0.55rem; font-weight: bold; width: 60px;">CREDITED ON ARC</span>
+                  </div>
                 </div>
 
-                <div class="flex justify-between items-center">
+                <div class="flex justify-between items-center border-t pt-3" style="border-color: rgba(255,255,255,0.03);">
                   <div class="flex items-center gap-1.5 micro-cap text-mute" style="font-size: 0.65rem;">
                     <Clock :size="10" />
                     <span v-if="bridge.status === 'burning'">Awaiting source ledger finality...</span>
@@ -673,13 +743,13 @@ onMounted(async () => {
                   <button 
                     v-if="bridge.status === 'attestation_ready'" 
                     class="btn-primary" 
-                    style="font-size: 0.7rem; padding: 0.35rem 0.75rem;"
+                    style="font-size: 0.7rem; padding: 0.35rem 0.75rem; border-radius: 0px;"
                     @click="web3.cctp.claimBridge(bridge)"
                   >
                     CLAIM FUNDS ON ARC
                   </button>
-                  <span v-else-if="bridge.status === 'minting'" class="micro-cap" style="color: var(--accent-secondary); font-weight: bold;">
-                    COMMITTING...
+                  <span v-else-if="bridge.status === 'minting'" class="micro-cap text-gradient" style="--gradient-to: var(--accent-secondary); font-weight: bold;">
+                    MINTING IN PROGRESS...
                   </span>
                 </div>
               </div>
