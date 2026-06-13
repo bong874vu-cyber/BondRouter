@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted, nextTick, watch } from 'vue'
+import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue'
 import { useBondStore } from '../stores/bond'
 import { useWeb3Store } from '../stores/web3'
 import { useUIStore } from '../stores/ui'
