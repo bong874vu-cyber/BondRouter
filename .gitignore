@@ -56,3 +56,4 @@ lerna-debug.log*
 
 docs/
 QA_TEST_GUIDE.md
+.circle_secrets_vault.json
