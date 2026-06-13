@@ -1,10 +1,14 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useBondStore } from '../stores/bond'
+import { useUIStore } from '../stores/ui'
 import { useNumberCounter } from '../composables/useCounter'
 import { ArrowRight, Globe, Layers, Zap } from 'lucide-vue-next'
+import OnboardingWizard from '../components/OnboardingWizard.vue'
 
 const store = useBondStore()
+const ui = useUIStore()
+const showWizard = ref(false)
 
 const displayBonds = useNumberCounter(computed(() => store.marketBonds.length))
 const displayChains = useNumberCounter(computed(() => store.chains.length))
@@ -48,12 +52,12 @@ const displayPositions = useNumberCounter(computed(() => store.portfolio.length)
               Earn high-yield institutional returns settled directly in secure digital dollars (USDC). Browse, compare, and automatically compound your capital from a single, beautiful dashboard.
             </p>
             <div class="flex items-center gap-4 mt-4">
-              <RouterLink to="/discover" class="btn-editorial-dark">
+              <button @click="showWizard = true" class="btn-editorial-dark" style="background: var(--accent-primary); border-color: var(--accent-primary); color: #131313;">
+                OPEN CORPORATE TREASURY 🌟
+              </button>
+              <RouterLink to="/discover" class="btn-glass" style="border-radius: 9999px; padding: 0.8rem 1.8rem;">
                 ENTER THE DESK
               </RouterLink>
-              <button @click="ui.startOnboarding" class="btn-glass" style="border-radius: 9999px; padding: 0.8rem 1.8rem;">
-                TAKE A TOUR 🌟
-              </button>
             </div>
           </div>
 
@@ -141,5 +145,8 @@ const displayPositions = useNumberCounter(computed(() => store.portfolio.length)
         </p>
       </div>
     </div>
+
+    <!-- Onboarding Setup Wizard Overlay -->
+    <OnboardingWizard :isOpen="showWizard" @close="showWizard = false" />
   </div>
 </template>

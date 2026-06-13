@@ -5,7 +5,7 @@ import { useBondStore } from './stores/bond'
 import { useWeb3Store } from './stores/web3'
 import Toast from './components/Toast.vue'
 import WalletModal from './components/WalletModal.vue'
-import SocialLoginModal from './components/SocialLoginModal.vue'
+import OnboardingWizard from './components/OnboardingWizard.vue'
 import ConnectedWalletModal from './components/ConnectedWalletModal.vue'
 import TreasuryAssistant from './components/TreasuryAssistant.vue'
 import { useNumberCounter } from './composables/useCounter'
@@ -147,7 +147,7 @@ function openSocialLogin() {
 
   <Toast />
   <WalletModal :isOpen="isWalletModalOpen" @close="isWalletModalOpen = false" @open-social-login="openSocialLogin" />
-  <SocialLoginModal :isOpen="isSocialLoginModalOpen" @close="isSocialLoginModalOpen = false" />
+  <OnboardingWizard :isOpen="isSocialLoginModalOpen" @close="isSocialLoginModalOpen = false" />
   <ConnectedWalletModal 
     :isOpen="isConnectedWalletModalOpen" 
     :email="web3.circleUserEmail"
