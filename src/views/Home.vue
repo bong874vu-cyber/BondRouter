@@ -5,6 +5,7 @@ import { useUIStore } from '../stores/ui'
 import { useNumberCounter } from '../composables/useCounter'
 import { ArrowRight, Globe, Layers, Zap } from 'lucide-vue-next'
 import OnboardingWizard from '../components/OnboardingWizard.vue'
+import { blogPosts } from '../data/blogPosts'
 
 const store = useBondStore()
 const ui = useUIStore()
@@ -13,6 +14,8 @@ const showWizard = ref(false)
 const displayBonds = useNumberCounter(computed(() => store.marketBonds.length))
 const displayChains = useNumberCounter(computed(() => store.chains.length))
 const displayPositions = useNumberCounter(computed(() => store.portfolio.length))
+
+const featuredPosts = computed(() => blogPosts.slice(0, 3))
 </script>
 
 <template>
@@ -146,7 +149,110 @@ const displayPositions = useNumberCounter(computed(() => store.portfolio.length)
       </div>
     </div>
 
+    <!-- FEATURED INSIGHTS SECTION -->
+    <div class="fade-up delay-3" style="margin: 6rem 0 4rem;">
+      <div class="flex justify-between items-end border-b pb-4 mb-8" style="border-color: var(--border-light);">
+        <div>
+          <span class="micro-cap" style="color: var(--accent-gold);">Treasury Intelligence</span>
+          <h2 class="display-lg" style="font-size: 2.25rem; margin-top: 0.25rem;">Featured Insights & Analysis</h2>
+        </div>
+        <RouterLink to="/blog" class="btn-link" style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-gold); text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+          View All Insights <ArrowRight :size="16" />
+        </RouterLink>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem;">
+        <RouterLink 
+          v-for="post in featuredPosts" 
+          :key="post.slug"
+          :to="'/blog/' + post.slug"
+          class="home-blog-card glass-panel"
+        >
+          <div class="home-blog-tag">{{ post.category }}</div>
+          <h3 class="home-blog-title">{{ post.title }}</h3>
+          <p class="home-blog-desc text-mute">{{ post.summary }}</p>
+          <span class="home-blog-link">
+            Read Article <ArrowRight :size="12" />
+          </span>
+        </RouterLink>
+      </div>
+    </div>
+
     <!-- Onboarding Setup Wizard Overlay -->
     <OnboardingWizard :isOpen="showWizard" @close="showWizard = false" />
   </div>
 </template>
+
+<style scoped>
+.home-blog-card {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--border-light);
+  padding: 2.25rem;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  height: 100%;
+}
+
+.home-blog-card:hover {
+  border-color: var(--accent-gold);
+  transform: translateY(-4px);
+}
+
+.home-blog-tag {
+  align-self: flex-start;
+  background: rgba(191, 168, 133, 0.05);
+  border: 1px solid rgba(191, 168, 133, 0.15);
+  color: var(--accent-gold);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.25rem 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.home-blog-title {
+  font-family: var(--font-serif);
+  font-size: 1.35rem;
+  line-height: 1.3;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+  color: var(--text-main);
+  transition: color 0.3s ease;
+}
+
+.home-blog-card:hover .home-blog-title {
+  color: var(--accent-gold);
+}
+
+.home-blog-desc {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+  flex-grow: 1;
+}
+
+.home-blog-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  transition: all 0.3s ease;
+}
+
+.home-blog-card:hover .home-blog-link {
+  color: var(--accent-gold);
+  gap: 0.5rem;
+}
+
+.btn-link:hover {
+  color: var(--text-main) !important;
+}
+</style>
+

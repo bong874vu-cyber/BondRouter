@@ -9,7 +9,7 @@ import OnboardingWizard from './components/OnboardingWizard.vue'
 import ConnectedWalletModal from './components/ConnectedWalletModal.vue'
 import TreasuryAssistant from './components/TreasuryAssistant.vue'
 import { useNumberCounter } from './composables/useCounter'
-import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen, Settings, Landmark } from 'lucide-vue-next'
+import { Wallet, Activity, ArrowRightLeft, Layers, ShieldCheck, BookOpen, Settings, Landmark, Newspaper } from 'lucide-vue-next'
 
 const store = useBondStore()
 const web3 = useWeb3Store()
@@ -73,7 +73,7 @@ function openSocialLogin() {
 
         <!-- Dropdown Management -->
         <div class="nav-dropdown" @mouseenter="activeDropdown = 'mgmt'" @mouseleave="activeDropdown = null">
-          <button class="nav-dropdown-trigger" :class="{ active: ['/governance', '/compliance', '/settings', '/docs'].includes(route.path) }">
+          <button class="nav-dropdown-trigger" :class="{ active: ['/governance', '/compliance', '/settings', '/docs', '/blog'].includes(route.path) || route.path.startsWith('/blog/') }">
             <Settings :size="16" /> Management <span class="chevron">▼</span>
           </button>
           <transition name="dropdown-fade">
@@ -83,6 +83,9 @@ function openSocialLogin() {
               </RouterLink>
               <RouterLink to="/compliance" class="dropdown-item">
                 <ShieldCheck :size="14" /> Compliance
+              </RouterLink>
+              <RouterLink to="/blog" class="dropdown-item">
+                <Newspaper :size="14" /> Insights Blog
               </RouterLink>
               <RouterLink to="/docs" class="dropdown-item">
                 <BookOpen :size="14" /> Documentation

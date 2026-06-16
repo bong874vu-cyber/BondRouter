@@ -11,6 +11,8 @@ const routes = [
   { path: '/secondary', name: 'SecondaryMarket', component: () => import('../views/SecondaryMarket.vue') },
   { path: '/governance', name: 'Governance', component: () => import('../views/Governance.vue') },
   { path: '/compliance', name: 'Compliance', component: () => import('../views/Compliance.vue') },
+  { path: '/blog', name: 'BlogListing', component: () => import('../views/BlogListing.vue') },
+  { path: '/blog/:slug', name: 'BlogDetail', component: () => import('../views/BlogDetail.vue') },
 ]
 
 const router = createRouter({
